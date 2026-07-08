@@ -16,25 +16,16 @@ if (scrollTopBtn) {
     });
 }
 
-// ===== STICKY HEADER =====
+// ===== STICKY HEADER LOGO =====
 const header = document.getElementById('header');
-let lastScrollTop = 0;
-
 window.addEventListener('scroll', () => {
-    if (!header) return;
-    const st = window.scrollY;
-    if (st >= 100) {
-        header.classList.add('sticky');
-        if (st < lastScrollTop) {
-            header.classList.add('show');
+    if (header) {
+        if (window.scrollY >= 85) {
+            header.classList.add('is-sticky');
         } else {
-            header.classList.remove('show');
+            header.classList.remove('is-sticky');
         }
-    } else if (st === 0) {
-        header.classList.remove('sticky');
-        header.classList.remove('show');
     }
-    lastScrollTop = st;
 }, { passive: true });
 
 // ===== SEARCH TOGGLE =====
