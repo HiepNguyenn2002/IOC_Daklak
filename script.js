@@ -109,3 +109,12 @@ document.querySelectorAll('.solution-card, .partner-card, .news-card, .sidebar-b
     el.style.animationPlayState = 'paused';
     observer.observe(el);
 });
+
+// Sidebar Accordion Logic
+const accordionHeaders = document.querySelectorAll('.accordion-header');
+accordionHeaders.forEach(header => {
+    header.addEventListener('click', () => {
+        const item = header.parentElement;
+        item.classList.toggle('active');
+    });
+});
