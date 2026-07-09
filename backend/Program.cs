@@ -258,9 +258,9 @@ app.MapGet("/api/nguoi-dung", async (HttpContext context) =>
 app.MapGet("/api/nguoi-dung/{username}", async (HttpContext context, string username) =>
 {
     var usersJson = await File.ReadAllTextAsync(usersPath);
-    var usersList = JsonSerializer.Deserialize<List<User>>(usersJson) ?? new List<User>();
+    var usersList = JsonSerializer.Deserialize<List<User>>(usersJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<User>();
     
-    var user = usersList.FirstOrDefault(u => u.Username.Equals(username, StringComparison.OrdinalIgnoreCase));
+    var user = usersList.FirstOrDefault(u => string.Equals(u.Username, username, StringComparison.OrdinalIgnoreCase));
     if (user == null) {
         context.Response.StatusCode = 404;
         await context.Response.WriteAsJsonAsync(new { success = false, message = "Không tìm thấy người dùng." });
@@ -287,9 +287,9 @@ app.MapPut("/api/nguoi-dung/{username}", async (HttpContext context, string user
     var updateReq = JsonSerializer.Deserialize<User>(body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     
     var usersJson = await File.ReadAllTextAsync(usersPath);
-    var usersList = JsonSerializer.Deserialize<List<User>>(usersJson) ?? new List<User>();
+    var usersList = JsonSerializer.Deserialize<List<User>>(usersJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<User>();
     
-    var userIndex = usersList.FindIndex(u => u.Username.Equals(username, StringComparison.OrdinalIgnoreCase));
+    var userIndex = usersList.FindIndex(u => string.Equals(u.Username, username, StringComparison.OrdinalIgnoreCase));
     if (userIndex == -1) {
         context.Response.StatusCode = 404;
         await context.Response.WriteAsJsonAsync(new { success = false, message = "Không tìm thấy người dùng." });
@@ -323,7 +323,7 @@ app.MapPost("/api/register", async (HttpContext context) =>
     var newUser = JsonSerializer.Deserialize<User>(body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     
     var usersJson = await File.ReadAllTextAsync(usersPath);
-    var usersList = JsonSerializer.Deserialize<List<User>>(usersJson) ?? new List<User>();
+    var usersList = JsonSerializer.Deserialize<List<User>>(usersJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<User>();
     
     if (usersList.Any(u => u.Username == newUser.Username)) {
         context.Response.StatusCode = 400;
@@ -346,7 +346,7 @@ app.MapPost("/api/login", async (HttpContext context) =>
     var loginReq = JsonSerializer.Deserialize<User>(body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     
     var usersJson = await File.ReadAllTextAsync(usersPath);
-    var usersList = JsonSerializer.Deserialize<List<User>>(usersJson) ?? new List<User>();
+    var usersList = JsonSerializer.Deserialize<List<User>>(usersJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<User>();
     
     var user = usersList.FirstOrDefault(u => u.Username == loginReq.Username && u.Password == loginReq.Password);
     if (user == null) {
