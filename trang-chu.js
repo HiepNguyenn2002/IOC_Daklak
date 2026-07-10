@@ -335,9 +335,53 @@ async function loadBaoLuContent() {
         const baoluData = await response.json();
         
         if (titleEl && baoluData.title) titleEl.innerText = baoluData.title;
-        if (contentEl && baoluData.content) contentEl.innerHTML = baoluData.content;
+        if (contentEl) {
+            contentEl.innerHTML = '';
+            if (!baoluData.posts || baoluData.posts.length === 0) {
+                contentEl.innerHTML = '<p style="text-align: center; color: #666; font-style: italic;">Chưa có bản tin bão lũ nào.</p>';
+                return;
+            }
+            
+            baoluData.posts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            
+            const grid = document.createElement('div');
+            grid.className = 'baolu-grid';
+            
+            baoluData.posts.forEach(post => {
+                const card = document.createElement('div');
+                card.className = 'baolu-card';
+                
+                let imageHtml = '';
+                if (post.imageUrl) {
+                    const imgUrl = post.imageUrl.startsWith('http') ? post.imageUrl : `http://localhost:5000${post.imageUrl}`;
+                    imageHtml = `<div class="baolu-img"><img src="${imgUrl}" alt="${post.title}"></div>`;
+                }
+                
+                let linkHtml = '';
+                if (post.linkUrl) {
+                    linkHtml = `<a href="${post.linkUrl}" target="_blank" class="baolu-link"><i class="fa-solid fa-link"></i> ${post.linkText || 'Xem chi tiết'}</a>`;
+                }
+                
+                card.innerHTML = `
+                    ${imageHtml}
+                    <div class="baolu-info">
+                        <h3 class="baolu-card-title">${post.title}</h3>
+                        <div class="baolu-meta">
+                            <span><i class="fa-solid fa-clock"></i> ${post.createdAt}</span>
+                            ${post.source ? `<span><i class="fa-solid fa-newspaper"></i> ${post.source}</span>` : ''}
+                        </div>
+                        <div class="baolu-card-content">
+                            ${post.content || ''}
+                        </div>
+                        ${linkHtml}
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+            contentEl.appendChild(grid);
+        }
     } catch (e) {
-        console.warn('Backend C# is not running. Using default static baolu content.');
+        console.warn('Backend C# is not running. Using default static baolu content.', e);
         if (titleEl) titleEl.innerText = "Cập nhật bão lũ";
         if (contentEl) contentEl.innerHTML = "<p>Lỗi kết nối tới Server. Vui lòng bật Backend.</p>";
     }

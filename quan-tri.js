@@ -168,7 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ]
         }
     };
-    ['about', 'support', 'history', 'products', 'orgchart', 'struct', 'baolu'].forEach(key => {
+    ['about', 'support', 'history', 'products', 'orgchart', 'struct'].forEach(key => {
         const editor = new Quill('#' + key + 'Content', quillOptions);
         
         // Loại bỏ nền xám (background) và màu chữ khi paste từ web khác vào
@@ -423,43 +423,172 @@ document.getElementById('struct-form').addEventListener('submit', async (e) => {
     }
 });
 
-// Load dữ liệu trang cập nhật bão lũ
+
+// --- Quản lý Bão Lũ ---
+let baoluDataGlobal = { title: "Cập nhật bão lũ", posts: [] };
+let baoluEditor = null;
+let isEditingBaolu = false;
+
+document.addEventListener('DOMContentLoaded', () => {
+    baoluEditor = new Quill('#baoluFormContent', {
+        theme: 'snow',
+        modules: {
+            toolbar: [
+                [{ 'header': [1, 2, 3, false] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                ['link', 'image'],
+                ['clean']
+            ]
+        }
+    });
+});
+
 async function loadBaoLu() {
     try {
         const response = await fetch(`${API_BASE}/cap-nhat-bao-lu`);
         if(response.ok) {
-            const baoluData = await response.json();
-            if(baoluData) {
-                if(baoluData.title) document.getElementById('baoluTitle').value = baoluData.title;
-                if(baoluData.content) window.editors['baolu'].clipboard.dangerouslyPasteHTML(baoluData.content);
-            }
+            baoluDataGlobal = await response.json();
+            if (!baoluDataGlobal.posts) baoluDataGlobal.posts = [];
+            renderBaoLuTable();
         }
     } catch (e) {
-        console.error("Lỗi lấy dữ liệu trang cập nhật bão lũ:", e);
+        console.error("Lỗi lấy dữ liệu bão lũ:", e);
     }
 }
 
-// Lưu dữ liệu trang cập nhật bão lũ
-document.getElementById('baolu-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const baoluDataPayload = {
-        title: document.getElementById('baoluTitle').value,
-        content: window.editors['baolu'].root.innerHTML
-    };
+function renderBaoLuTable() {
+    const tbody = document.getElementById('baoluTableBody');
+    tbody.innerHTML = '';
+    
+    baoluDataGlobal.posts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    
+    baoluDataGlobal.posts.forEach(post => {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = "1px solid #e2e8f0";
+        tr.innerHTML = `
+            <td style="padding: 12px;"><img src="${post.imageUrl || 'https://via.placeholder.com/100x60'}" style="width: 80px; height: 50px; object-fit: cover; border-radius: 4px;"></td>
+            <td style="padding: 12px; font-weight: 500;">${post.title}</td>
+            <td style="padding: 12px;">${post.source || '-'}</td>
+            <td style="padding: 12px; color: #64748b;">${post.createdAt}</td>
+            <td style="padding: 12px; text-align: center;">
+                <button onclick="editBaoLu('${post.id}')" style="background: none; border: none; color: #3b82f6; cursor: pointer; margin-right: 10px;" title="Sửa"><i class="fa-solid fa-pen"></i></button>
+                <button onclick="deleteBaoLu('${post.id}')" style="background: none; border: none; color: #ef4444; cursor: pointer;" title="Xóa"><i class="fa-solid fa-trash"></i></button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
 
+function openBaoLuModal() {
+    isEditingBaolu = false;
+    document.getElementById('baoluModalTitle').textContent = 'Đăng tin bão lũ mới';
+    document.getElementById('baoluPostForm').reset();
+    document.getElementById('baoluFormId').value = '';
+    baoluEditor.root.innerHTML = '';
+    document.getElementById('baoluModal').style.display = 'flex';
+}
+
+function closeBaoLuModal() {
+    document.getElementById('baoluModal').style.display = 'none';
+}
+
+function editBaoLu(id) {
+    const post = baoluDataGlobal.posts.find(p => p.id === id);
+    if (!post) return;
+    
+    isEditingBaolu = true;
+    document.getElementById('baoluModalTitle').textContent = 'Sửa tin bão lũ';
+    document.getElementById('baoluFormId').value = post.id;
+    document.getElementById('baoluFormTitle').value = post.title;
+    document.getElementById('baoluFormImageUrl').value = post.imageUrl || '';
+    document.getElementById('baoluFormSource').value = post.source || '';
+    document.getElementById('baoluFormLinkUrl').value = post.linkUrl || '';
+    document.getElementById('baoluFormLinkText').value = post.linkText || '';
+    baoluEditor.root.innerHTML = post.content || '';
+    
+    document.getElementById('baoluModal').style.display = 'flex';
+}
+
+async function deleteBaoLu(id) {
+    if (!confirm('Bạn có chắc chắn muốn xóa tin này?')) return;
+    
+    baoluDataGlobal.posts = baoluDataGlobal.posts.filter(p => p.id !== id);
+    await saveBaoLuToServer('Đã xóa tin bão lũ.');
+}
+
+document.getElementById('baoluPostForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    let imageUrl = document.getElementById('baoluFormImageUrl').value;
+    const fileInput = document.getElementById('baoluFormImageUpload');
+    
+    // Nếu có file upload, ưu tiên dùng file upload
+    if (fileInput.files.length > 0) {
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        try {
+            const upRes = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
+            const upData = await upRes.json();
+            if (upData.url) {
+                imageUrl = upData.url;
+            } else {
+                showAlert('Lỗi tải ảnh lên', false);
+                return;
+            }
+        } catch (err) {
+            showAlert('Lỗi tải ảnh lên', false);
+            return;
+        }
+    }
+    
+    const postData = {
+        title: document.getElementById('baoluFormTitle').value,
+        imageUrl: imageUrl,
+        source: document.getElementById('baoluFormSource').value,
+        content: baoluEditor.root.innerHTML,
+        linkUrl: document.getElementById('baoluFormLinkUrl').value,
+        linkText: document.getElementById('baoluFormLinkText').value
+    };
+    
+    if (isEditingBaolu) {
+        const id = document.getElementById('baoluFormId').value;
+        const index = baoluDataGlobal.posts.findIndex(p => p.id === id);
+        if (index > -1) {
+            postData.id = id;
+            postData.createdAt = baoluDataGlobal.posts[index].createdAt;
+            baoluDataGlobal.posts[index] = postData;
+        }
+    } else {
+        postData.id = Date.now().toString();
+        const d = new Date();
+        postData.createdAt = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') + ':' + String(d.getSeconds()).padStart(2,'0');
+        baoluDataGlobal.posts.push(postData);
+    }
+    
+    await saveBaoLuToServer(isEditingBaolu ? 'Cập nhật thành công!' : 'Đã đăng tin mới!');
+    closeBaoLuModal();
+});
+
+async function saveBaoLuToServer(successMessage) {
     try {
         const response = await fetch(`${API_BASE}/cap-nhat-bao-lu`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(baoluDataPayload)
+            body: JSON.stringify(baoluDataGlobal)
         });
         const result = await response.json();
-        if(result.success) showAlert(result.message);
-        else showAlert('Lỗi lưu trang cập nhật bão lũ', false);
+        if(result.success) {
+            showAlert(successMessage);
+            renderBaoLuTable();
+        } else {
+            showAlert('Lỗi lưu trang cập nhật bão lũ', false);
+        }
     } catch (error) {
         showAlert('Lỗi kết nối tới Server', false);
     }
-});
+}
+
 
 
 // --- Xử lý Quản lý người dùng ---
