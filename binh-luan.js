@@ -119,6 +119,14 @@ document.addEventListener('DOMContentLoaded', () => {
     
     commentsSort.addEventListener('change', renderComments);
     
+    
+    commentInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            postCommentBtn.click();
+        }
+    });
+
     postCommentBtn.addEventListener('click', async () => {
         const text = commentInput.value.trim();
         if (!text) return;

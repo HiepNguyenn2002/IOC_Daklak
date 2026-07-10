@@ -1913,7 +1913,7 @@ img {
 }
 .comments-header h3 {
     font-size: 20px;
-    color: var(--primary);
+    color: var(--primary-blue);
 }
 .comments-sort select {
     padding: 8px 12px;
@@ -1935,10 +1935,10 @@ img {
     outline: none;
 }
 .comments-input-area textarea:focus {
-    border-color: var(--primary);
+    border-color: var(--primary-blue);
 }
 .post-comment-btn {
-    background: var(--primary);
+    background: var(--primary-blue);
     color: #fff;
     border: none;
     padding: 10px 20px;
@@ -1958,7 +1958,7 @@ img {
     border: 1px dashed #ccc;
 }
 .comments-login-prompt a {
-    color: var(--primary);
+    color: var(--primary-blue);
     font-weight: bold;
     text-decoration: underline;
 }
@@ -2016,5 +2016,5 @@ img {
     padding: 0;
 }
 .comment-actions .like-btn:hover {
-    color: var(--primary);
+    color: var(--primary-blue);
 }
