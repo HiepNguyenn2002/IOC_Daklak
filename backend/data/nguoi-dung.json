@@ -1,38 +1,46 @@
 [
   {
-    "Id": "ab396fea-1d7d-4d25-9d24-bfef1f003e2c",
-    "Username": null,
-    "Password": null,
-    "RegisterDate": "2026-07-09 16:04:30",
-    "Email": null,
-    "DateOfBirth": null,
-    "AvatarUrl": null
+    "id": "765b12a1-6473-452c-b666-9e3f5824c92c",
+    "username": "admin",
+    "password": "admin123",
+    "registerDate": "2026-07-09 17:27:51",
+    "email": null,
+    "dateOfBirth": null,
+    "avatarUrl": null,
+    "fullName": null,
+    "isActive": true
   },
   {
-    "Id": "765b12a1-6473-452c-b666-9e3f5824c92c",
-    "Username": "admin",
-    "Password": "admin123",
-    "RegisterDate": "2026-07-09 17:27:51",
-    "Email": null,
-    "DateOfBirth": null,
-    "AvatarUrl": null
+    "id": "108519bf-325e-4c39-a046-eb4e350d4240",
+    "username": "admin1",
+    "password": "admin123",
+    "registerDate": "2026-07-10 08:08:28",
+    "email": null,
+    "dateOfBirth": null,
+    "avatarUrl": null,
+    "fullName": null,
+    "isActive": true
   },
   {
-    "Id": "108519bf-325e-4c39-a046-eb4e350d4240",
-    "Username": "admin1",
-    "Password": "admin123",
-    "RegisterDate": "2026-07-10 08:08:28",
-    "Email": null,
-    "DateOfBirth": null,
-    "AvatarUrl": null
+    "id": "a712458a-96de-4df2-8a5f-80a54fdbc53e",
+    "username": "admin2",
+    "password": "admin123",
+    "registerDate": "2026-07-10 08:09:10",
+    "email": null,
+    "dateOfBirth": null,
+    "avatarUrl": null,
+    "fullName": null,
+    "isActive": true
   },
   {
-    "Id": "a712458a-96de-4df2-8a5f-80a54fdbc53e",
-    "Username": "admin2",
-    "Password": "admin123",
-    "RegisterDate": "2026-07-10 08:09:10",
-    "Email": null,
-    "DateOfBirth": null,
-    "AvatarUrl": null
+    "id": "a59c769c-1070-41dc-9afe-1f6f43d19822",
+    "username": "testuser",
+    "password": "123",
+    "registerDate": "2026-07-10 08:54:32",
+    "email": null,
+    "dateOfBirth": null,
+    "avatarUrl": null,
+    "fullName": null,
+    "isActive": true
   }
 ]
