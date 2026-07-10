@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <label style="display: flex; align-items: center; gap: 5px; font-weight: normal; margin-bottom: 0; cursor: pointer;">
                     <input type="checkbox" id="rememberMe"> Ghi nhớ tài khoản
                 </label>
-                <a href="#" id="forgotPasswordLink" style="color: var(--primary); text-decoration: none;">Quên mật khẩu?</a>
+                <a href="#" id="forgotPasswordLink" style="color: var(--primary-blue); text-decoration: none;">Quên mật khẩu?</a>
             </div>
             <p class="auth-error" id="loginError"></p>
             <button type="submit" class="auth-submit-btn">Đăng nhập</button>

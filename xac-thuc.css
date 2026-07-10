@@ -44,7 +44,7 @@
 }
 .user-dropdown-menu li a:hover {
     background: #f5f7fa;
-    color: var(--primary);
+    color: var(--primary-blue);
 }
 .user-info-item {
     padding: 8px 15px;
@@ -110,8 +110,8 @@
     outline: none;
 }
 .auth-tab.active {
-    color: var(--primary);
-    border-bottom: 2px solid var(--primary);
+    color: var(--primary-blue);
+    border-bottom: 2px solid var(--primary-blue);
 }
 .auth-form {
     display: none;
@@ -135,13 +135,13 @@
     font-family: 'Inter', sans-serif;
 }
 .auth-form input:focus {
-    border-color: var(--primary);
+    border-color: var(--primary-blue);
     outline: none;
 }
 .auth-submit-btn {
     width: 100%;
     padding: 12px;
-    background: var(--primary);
+    background: var(--primary-blue);
     color: #fff;
     border: none;
     border-radius: 4px;
@@ -159,3 +159,8 @@
 }
 
 /* ===== COMMENTS SECTION ===== */
+.auth-form input[type="checkbox"] {
+    width: auto;
+    padding: 0;
+    margin: 0;
+}
