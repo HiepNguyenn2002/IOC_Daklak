@@ -395,6 +395,13 @@ app.MapPost("/api/binh-luan", async (HttpContext context) =>
     newComment.Id = Guid.NewGuid().ToString();
     newComment.CreatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
     newComment.Likes = 0;
+    newComment.Dislikes = 0;
+    
+    // Find AvatarUrl
+    var usersJson = await File.ReadAllTextAsync(usersPath);
+    var usersList = JsonSerializer.Deserialize<List<User>>(usersJson) ?? new List<User>();
+    var user = usersList.FirstOrDefault(u => u.Username == newComment.Username);
+    newComment.AvatarUrl = user?.AvatarUrl ?? "";
     
     commentsList.Add(newComment);
     
@@ -412,6 +419,22 @@ app.MapPost("/api/binh-luan/{id}/like", async (HttpContext context, string id) =
         comment.Likes += 1;
         await File.WriteAllTextAsync(commentsPath, JsonSerializer.Serialize(commentsList, new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
         await context.Response.WriteAsJsonAsync(new { success = true, likes = comment.Likes });
+    } else {
+        context.Response.StatusCode = 404;
+        await context.Response.WriteAsJsonAsync(new { success = false, message = "Không tìm thấy bình luận." });
+    }
+});
+
+app.MapPost("/api/binh-luan/{id}/dislike", async (HttpContext context, string id) =>
+{
+    var commentsJson = await File.ReadAllTextAsync(commentsPath);
+    var commentsList = JsonSerializer.Deserialize<List<Comment>>(commentsJson) ?? new List<Comment>();
+    
+    var comment = commentsList.FirstOrDefault(c => c.Id == id);
+    if (comment != null) {
+        comment.Dislikes += 1;
+        await File.WriteAllTextAsync(commentsPath, JsonSerializer.Serialize(commentsList, new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+        await context.Response.WriteAsJsonAsync(new { success = true, dislikes = comment.Dislikes });
     } else {
         context.Response.StatusCode = 404;
         await context.Response.WriteAsJsonAsync(new { success = false, message = "Không tìm thấy bình luận." });
@@ -520,6 +543,8 @@ public class Comment {
     public string Username { get; set; }
     public string Content { get; set; }
     public int Likes { get; set; }
+    public int Dislikes { get; set; }
+    public string AvatarUrl { get; set; }
     public string CreatedAt { get; set; }
 }
 

@@ -2018,3 +2018,15 @@ img {
 .comment-actions .like-btn:hover {
     color: var(--primary-blue);
 }
+
+.comment-actions .dislike-btn {
+    background: none;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    font-size: 13px;
+    padding: 0;
+}
+.comment-actions .dislike-btn:hover {
+    color: var(--accent-red);
+}
