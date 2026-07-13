@@ -29,6 +29,11 @@ document.querySelectorAll('.tab-link').forEach(link => {
         document.getElementById(targetId).classList.add('active');
         if (targetId === 'accounts-tab') {
             loadUsers();
+        } else if (e.currentTarget.classList.contains('news-category-link')) {
+            const categoryId = e.currentTarget.dataset.category;
+            const categoryName = e.currentTarget.textContent.trim();
+            document.getElementById('newsTabTitle').textContent = `Quản lý ${categoryName}`;
+            loadNews(categoryId);
         }
     });
 });
@@ -192,7 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadProducts();
     loadOrgChart();
     loadStruct();
-    loadBaoLu();
+    loadStruct();
 });
 
 // Load dữ liệu trang giới thiệu
@@ -424,13 +429,14 @@ document.getElementById('struct-form').addEventListener('submit', async (e) => {
 });
 
 
-// --- Quản lý Bão Lũ ---
-let baoluDataGlobal = { title: "Cập nhật bão lũ", posts: [] };
-let baoluEditor = null;
-let isEditingBaolu = false;
+// --- Quản lý Danh mục Tin tức động ---
+let newsDataGlobal = { title: "", posts: [] };
+let newsEditor = null;
+let isEditingNews = false;
+let currentNewsCategory = '';
 
 document.addEventListener('DOMContentLoaded', () => {
-    baoluEditor = new Quill('#baoluFormContent', {
+    newsEditor = new Quill('#newsFormContent', {
         theme: 'snow',
         modules: {
             toolbar: [
@@ -444,26 +450,27 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-async function loadBaoLu() {
+async function loadNews(categoryId) {
+    currentNewsCategory = categoryId;
     try {
-        const response = await fetch(`${API_BASE}/cap-nhat-bao-lu`);
+        const response = await fetch(`${API_BASE}/${categoryId}`);
         if(response.ok) {
-            baoluDataGlobal = await response.json();
-            if (!baoluDataGlobal.posts) baoluDataGlobal.posts = [];
-            renderBaoLuTable();
+            newsDataGlobal = await response.json();
+            if (!newsDataGlobal.posts) newsDataGlobal.posts = [];
+            renderNewsTable();
         }
     } catch (e) {
-        console.error("Lỗi lấy dữ liệu bão lũ:", e);
+        console.error(`Lỗi lấy dữ liệu tin tức ${categoryId}:`, e);
     }
 }
 
-function renderBaoLuTable() {
-    const tbody = document.getElementById('baoluTableBody');
+function renderNewsTable() {
+    const tbody = document.getElementById('newsTableBody');
     tbody.innerHTML = '';
     
-    baoluDataGlobal.posts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    newsDataGlobal.posts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     
-    baoluDataGlobal.posts.forEach(post => {
+    newsDataGlobal.posts.forEach(post => {
         const tr = document.createElement('tr');
         tr.style.borderBottom = "1px solid #e2e8f0";
         tr.innerHTML = `
@@ -472,56 +479,60 @@ function renderBaoLuTable() {
             <td style="padding: 12px;">${post.source || '-'}</td>
             <td style="padding: 12px; color: #64748b;">${post.createdAt}</td>
             <td style="padding: 12px; text-align: center;">
-                <button onclick="editBaoLu('${post.id}')" style="background: none; border: none; color: #3b82f6; cursor: pointer; margin-right: 10px;" title="Sửa"><i class="fa-solid fa-pen"></i></button>
-                <button onclick="deleteBaoLu('${post.id}')" style="background: none; border: none; color: #ef4444; cursor: pointer;" title="Xóa"><i class="fa-solid fa-trash"></i></button>
+                <button onclick="editNews('${post.id}')" style="background: none; border: none; color: #3b82f6; cursor: pointer; margin-right: 10px;" title="Sửa"><i class="fa-solid fa-pen"></i></button>
+                <button onclick="deleteNews('${post.id}')" style="background: none; border: none; color: #ef4444; cursor: pointer;" title="Xóa"><i class="fa-solid fa-trash"></i></button>
             </td>
         `;
         tbody.appendChild(tr);
     });
 }
 
-function openBaoLuModal() {
-    isEditingBaolu = false;
-    document.getElementById('baoluModalTitle').textContent = 'Đăng tin bão lũ mới';
-    document.getElementById('baoluPostForm').reset();
-    document.getElementById('baoluFormId').value = '';
-    baoluEditor.root.innerHTML = '';
-    document.getElementById('baoluModal').style.display = 'flex';
+function openNewsModal() {
+    if (!currentNewsCategory) {
+        showAlert('Vui lòng chọn một danh mục bên trái trước', false);
+        return;
+    }
+    isEditingNews = false;
+    document.getElementById('newsModalTitle').textContent = 'Đăng tin bài mới';
+    document.getElementById('newsPostForm').reset();
+    document.getElementById('newsFormId').value = '';
+    newsEditor.root.innerHTML = '';
+    document.getElementById('newsModal').style.display = 'flex';
 }
 
-function closeBaoLuModal() {
-    document.getElementById('baoluModal').style.display = 'none';
+function closeNewsModal() {
+    document.getElementById('newsModal').style.display = 'none';
 }
 
-function editBaoLu(id) {
-    const post = baoluDataGlobal.posts.find(p => p.id === id);
+function editNews(id) {
+    const post = newsDataGlobal.posts.find(p => p.id === id);
     if (!post) return;
     
-    isEditingBaolu = true;
-    document.getElementById('baoluModalTitle').textContent = 'Sửa tin bão lũ';
-    document.getElementById('baoluFormId').value = post.id;
-    document.getElementById('baoluFormTitle').value = post.title;
-    document.getElementById('baoluFormImageUrl').value = post.imageUrl || '';
-    document.getElementById('baoluFormSource').value = post.source || '';
-    document.getElementById('baoluFormLinkUrl').value = post.linkUrl || '';
-    document.getElementById('baoluFormLinkText').value = post.linkText || '';
-    baoluEditor.root.innerHTML = post.content || '';
+    isEditingNews = true;
+    document.getElementById('newsModalTitle').textContent = 'Sửa tin bài';
+    document.getElementById('newsFormId').value = post.id;
+    document.getElementById('newsFormTitle').value = post.title;
+    document.getElementById('newsFormImageUrl').value = post.imageUrl || '';
+    document.getElementById('newsFormSource').value = post.source || '';
+    document.getElementById('newsFormLinkUrl').value = post.linkUrl || '';
+    document.getElementById('newsFormLinkText').value = post.linkText || '';
+    newsEditor.root.innerHTML = post.content || '';
     
-    document.getElementById('baoluModal').style.display = 'flex';
+    document.getElementById('newsModal').style.display = 'flex';
 }
 
-async function deleteBaoLu(id) {
+async function deleteNews(id) {
     if (!confirm('Bạn có chắc chắn muốn xóa tin này?')) return;
     
-    baoluDataGlobal.posts = baoluDataGlobal.posts.filter(p => p.id !== id);
-    await saveBaoLuToServer('Đã xóa tin bão lũ.');
+    newsDataGlobal.posts = newsDataGlobal.posts.filter(p => p.id !== id);
+    await saveNewsToServer('Đã xóa tin bài.');
 }
 
-document.getElementById('baoluPostForm').addEventListener('submit', async (e) => {
+document.getElementById('newsPostForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    let imageUrl = document.getElementById('baoluFormImageUrl').value;
-    const fileInput = document.getElementById('baoluFormImageUpload');
+    let imageUrl = document.getElementById('newsFormImageUrl').value;
+    const fileInput = document.getElementById('newsFormImageUpload');
     
     // Nếu có file upload, ưu tiên dùng file upload
     if (fileInput.files.length > 0) {
@@ -543,46 +554,47 @@ document.getElementById('baoluPostForm').addEventListener('submit', async (e) =>
     }
     
     const postData = {
-        title: document.getElementById('baoluFormTitle').value,
+        title: document.getElementById('newsFormTitle').value,
         imageUrl: imageUrl,
-        source: document.getElementById('baoluFormSource').value,
-        content: baoluEditor.root.innerHTML,
-        linkUrl: document.getElementById('baoluFormLinkUrl').value,
-        linkText: document.getElementById('baoluFormLinkText').value
+        source: document.getElementById('newsFormSource').value,
+        content: newsEditor.root.innerHTML,
+        linkUrl: document.getElementById('newsFormLinkUrl').value,
+        linkText: document.getElementById('newsFormLinkText').value
     };
     
-    if (isEditingBaolu) {
-        const id = document.getElementById('baoluFormId').value;
-        const index = baoluDataGlobal.posts.findIndex(p => p.id === id);
+    if (isEditingNews) {
+        const id = document.getElementById('newsFormId').value;
+        const index = newsDataGlobal.posts.findIndex(p => p.id === id);
         if (index > -1) {
             postData.id = id;
-            postData.createdAt = baoluDataGlobal.posts[index].createdAt;
-            baoluDataGlobal.posts[index] = postData;
+            postData.createdAt = newsDataGlobal.posts[index].createdAt;
+            newsDataGlobal.posts[index] = postData;
         }
     } else {
         postData.id = Date.now().toString();
         const d = new Date();
         postData.createdAt = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') + ':' + String(d.getSeconds()).padStart(2,'0');
-        baoluDataGlobal.posts.push(postData);
+        newsDataGlobal.posts.push(postData);
     }
     
-    await saveBaoLuToServer(isEditingBaolu ? 'Cập nhật thành công!' : 'Đã đăng tin mới!');
-    closeBaoLuModal();
+    await saveNewsToServer(isEditingNews ? 'Cập nhật thành công!' : 'Đã đăng tin mới!');
+    closeNewsModal();
 });
 
-async function saveBaoLuToServer(successMessage) {
+async function saveNewsToServer(successMessage) {
+    if (!currentNewsCategory) return;
     try {
-        const response = await fetch(`${API_BASE}/cap-nhat-bao-lu`, {
+        const response = await fetch(`${API_BASE}/${currentNewsCategory}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(baoluDataGlobal)
+            body: JSON.stringify(newsDataGlobal)
         });
         const result = await response.json();
         if(result.success) {
             showAlert(successMessage);
-            renderBaoLuTable();
+            renderNewsTable();
         } else {
-            showAlert('Lỗi lưu trang cập nhật bão lũ', false);
+            showAlert('Lỗi lưu danh mục tin tức', false);
         }
     } catch (error) {
         showAlert('Lỗi kết nối tới Server', false);

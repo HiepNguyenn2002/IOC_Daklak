@@ -38,7 +38,31 @@ string historyPath = Path.Combine(dataDir, "lich-su-hinh-thanh.json");
 string productsPath = Path.Combine(dataDir, "san-pham-tieu-bieu.json");
 string orgChartPath = Path.Combine(dataDir, "so-do-to-chuc.json");
 string structPath = Path.Combine(dataDir, "co-cau-to-chuc.json");
-string baoLuPath = Path.Combine(dataDir, "cap-nhat-bao-lu.json");
+// Khởi tạo các danh mục tin tức (sử dụng Dictionary để đăng ký tĩnh, bảo mật và dễ bảo trì)
+var newsCategories = new Dictionary<string, string>
+{
+    { "cap-nhat-bao-lu", "Cập nhật bão lũ" },
+    { "cds-doi-moi-sang-tao", "CĐS - Đổi mới sáng tạo" },
+    { "chi-dao-dieu-hanh", "Chỉ đạo điều hành" },
+    { "cong-tac-xay-dung-dang", "Công tác xây dựng Đảng" },
+    { "giai-phap-an-toan-mang", "Giải pháp An toàn mạng" },
+    { "giai-phap-an-toan-thong-tin", "Giải pháp An toàn thông tin" },
+    { "thong-bao", "Thông báo" },
+    { "tieu-chuan-chat-luong", "Tiêu chuẩn - Chất lượng" },
+    { "tin-hoat-dong", "Tin hoạt động" },
+    { "trao-doi-kinh-nghiem", "Trao đổi kinh nghiệm" },
+    { "tuong-tac-cong-dan", "Tương tác công dân" }
+};
+
+foreach (var cat in newsCategories)
+{
+    string path = Path.Combine(dataDir, $"{cat.Key}.json");
+    if (!File.Exists(path))
+    {
+        var initialData = new { title = cat.Value, posts = new List<object>() };
+        File.WriteAllText(path, JsonSerializer.Serialize(initialData));
+    }
+}
 string usersPath = Path.Combine(dataDir, "nguoi-dung.json");
 string commentsPath = Path.Combine(dataDir, "danh-sach-binh-luan.json");
 
@@ -51,7 +75,7 @@ if (!File.Exists(historyPath)) File.WriteAllText(historyPath, "{\"title\":\"\",\
 if (!File.Exists(productsPath)) File.WriteAllText(productsPath, "{\"title\":\"\",\"content\":\"\"}");
 if (!File.Exists(orgChartPath)) File.WriteAllText(orgChartPath, "{\"title\":\"\",\"content\":\"\"}");
 if (!File.Exists(structPath)) File.WriteAllText(structPath, "{\"title\":\"\",\"content\":\"\"}");
-if (!File.Exists(baoLuPath)) File.WriteAllText(baoLuPath, "{\"title\":\"\",\"content\":\"\"}");
+
 if (!File.Exists(usersPath)) File.WriteAllText(usersPath, "[]");
 if (!File.Exists(commentsPath)) File.WriteAllText(commentsPath, "[]");
 
@@ -174,23 +198,26 @@ app.MapPost("/api/co-cau-to-chuc", async (HttpContext context) =>
     await context.Response.WriteAsJsonAsync(new { success = true, message = "Trang cơ cấu tổ chức đã được lưu." });
 });
 
-// API: Lấy thông tin bão lũ
-app.MapGet("/api/cap-nhat-bao-lu", async (HttpContext context) =>
+// --- API DANH MỤC TIN TỨC (Đăng ký tĩnh ở startup để đảm bảo hiệu năng và bảo mật tối đa) ---
+foreach (var cat in newsCategories)
 {
-    var baoLuJson = await File.ReadAllTextAsync(baoLuPath);
-    context.Response.ContentType = "application/json";
-    await context.Response.WriteAsync(baoLuJson);
-});
+    string filePath = Path.Combine(dataDir, $"{cat.Key}.json");
 
-// API: Cập nhật thông tin bão lũ
-app.MapPost("/api/cap-nhat-bao-lu", async (HttpContext context) =>
-{
-    using var reader = new StreamReader(context.Request.Body);
-    var body = await reader.ReadToEndAsync();
-    await File.WriteAllTextAsync(baoLuPath, body);
-    await context.Response.WriteAsJsonAsync(new { success = true, message = "Trang cập nhật bão lũ đã được lưu." });
-});
+    app.MapGet($"/api/{cat.Key}", async (HttpContext context) =>
+    {
+        var json = await File.ReadAllTextAsync(filePath);
+        context.Response.ContentType = "application/json";
+        await context.Response.WriteAsync(json);
+    });
 
+    app.MapPost($"/api/{cat.Key}", async (HttpContext context) =>
+    {
+        using var reader = new StreamReader(context.Request.Body);
+        var body = await reader.ReadToEndAsync();
+        await File.WriteAllTextAsync(filePath, body);
+        await context.Response.WriteAsJsonAsync(new { success = true, message = $"Trang {cat.Value} đã được lưu." });
+    });
+}
 
 // API: Lấy danh sách tin tức
 app.MapGet("/api/tin-tuc", async (HttpContext context) =>

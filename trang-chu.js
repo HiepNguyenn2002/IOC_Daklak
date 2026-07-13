@@ -193,7 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadProductsContent();
     loadOrgChartContent();
     loadStructContent();
-    loadBaoLuContent();
+    loadCategoryNews();
 });
 
 async function loadSupportContent() {
@@ -322,32 +322,36 @@ async function loadStructContent() {
     }
 }
 
-async function loadBaoLuContent() {
-    const titleEl = document.getElementById('dynamic-baolu-title');
-    const contentEl = document.getElementById('dynamic-baolu-content');
+async function loadCategoryNews() {
+    // Lấy ID danh mục từ thuộc tính data-page-id của thẻ body
+    const categoryId = document.body.getAttribute('data-page-id');
+    if (!categoryId) return; // Nếu không có thì không phải trang tin tức
+
+    // Lấy phần tử hiển thị (hỗ trợ cả id chung và id cũ của bão lũ để tương thích ngược)
+    const titleEl = document.getElementById('dynamic-news-title') || document.getElementById('dynamic-baolu-title');
+    const contentEl = document.getElementById('dynamic-news-content') || document.getElementById('dynamic-baolu-content');
     
-    // Chỉ tải nếu đang ở trang Bão lũ
     if (!titleEl && !contentEl) return;
 
     try {
-        const response = await fetch(`${API_BASE}/cap-nhat-bao-lu`);
+        const response = await fetch(`${API_BASE}/${categoryId}`);
         if (!response.ok) return;
-        const baoluData = await response.json();
+        const data = await response.json();
         
-        if (titleEl && baoluData.title) titleEl.innerText = baoluData.title;
+        if (titleEl && data.title) titleEl.innerText = data.title;
         if (contentEl) {
             contentEl.innerHTML = '';
-            if (!baoluData.posts || baoluData.posts.length === 0) {
-                contentEl.innerHTML = '<p style="text-align: center; color: #666; font-style: italic;">Chưa có bản tin bão lũ nào.</p>';
+            if (!data.posts || data.posts.length === 0) {
+                contentEl.innerHTML = '<p style="text-align: center; color: #666; font-style: italic;">Chưa có bản tin nào.</p>';
                 return;
             }
             
-            baoluData.posts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            data.posts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             
             const grid = document.createElement('div');
-            grid.className = 'baolu-grid';
+            grid.className = 'baolu-grid'; // Vẫn giữ class cũ để dùng chung CSS
             
-            baoluData.posts.forEach(post => {
+            data.posts.forEach(post => {
                 const card = document.createElement('div');
                 card.className = 'baolu-card';
                 
@@ -381,8 +385,7 @@ async function loadBaoLuContent() {
             contentEl.appendChild(grid);
         }
     } catch (e) {
-        console.warn('Backend C# is not running. Using default static baolu content.', e);
-        if (titleEl) titleEl.innerText = "Cập nhật bão lũ";
+        console.warn(`Backend C# is not running. Failed to load ${categoryId}.`, e);
         if (contentEl) contentEl.innerHTML = "<p>Lỗi kết nối tới Server. Vui lòng bật Backend.</p>";
     }
 }

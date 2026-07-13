@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const PAGE_ID = 'chuc-nang-nhiem-vu';
+    const PAGE_ID = document.body.getAttribute('data-page-id') || 'default-page';
     
     const commentsSort = document.getElementById('commentsSort');
     const commentsInputArea = document.getElementById('commentsInputArea');

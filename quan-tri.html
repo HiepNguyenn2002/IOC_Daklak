@@ -73,7 +73,17 @@
                     <i class="fa-solid fa-chevron-down drop-icon"></i>
                 </div>
                 <ul class="sub-menu">
-                    <li><a href="#" class="tab-link" data-target="baolu-tab"><i class="fa-solid fa-cloud-showers-heavy"></i> Cập Nhật Bão Lũ</a></li>
+                    <li><a href="#" class="tab-link news-category-link" data-target="dynamic-news-tab" data-category="cap-nhat-bao-lu"><i class="fa-solid fa-cloud-showers-heavy"></i> Cập Nhật Bão Lũ</a></li>
+                    <li><a href="#" class="tab-link news-category-link" data-target="dynamic-news-tab" data-category="cds-doi-moi-sang-tao"><i class="fa-solid fa-lightbulb"></i> CĐS - Đổi mới sáng tạo</a></li>
+                    <li><a href="#" class="tab-link news-category-link" data-target="dynamic-news-tab" data-category="chi-dao-dieu-hanh"><i class="fa-solid fa-gavel"></i> Chỉ đạo điều hành</a></li>
+                    <li><a href="#" class="tab-link news-category-link" data-target="dynamic-news-tab" data-category="cong-tac-xay-dung-dang"><i class="fa-solid fa-flag"></i> Công tác xây dựng Đảng</a></li>
+                    <li><a href="#" class="tab-link news-category-link" data-target="dynamic-news-tab" data-category="giai-phap-an-toan-mang"><i class="fa-solid fa-shield-halved"></i> Giải pháp An toàn mạng</a></li>
+                    <li><a href="#" class="tab-link news-category-link" data-target="dynamic-news-tab" data-category="giai-phap-an-toan-thong-tin"><i class="fa-solid fa-lock"></i> Giải pháp An toàn thông tin</a></li>
+                    <li><a href="#" class="tab-link news-category-link" data-target="dynamic-news-tab" data-category="thong-bao"><i class="fa-solid fa-bell"></i> Thông báo</a></li>
+                    <li><a href="#" class="tab-link news-category-link" data-target="dynamic-news-tab" data-category="tieu-chuan-chat-luong"><i class="fa-solid fa-award"></i> Tiêu chuẩn - Chất lượng</a></li>
+                    <li><a href="#" class="tab-link news-category-link" data-target="dynamic-news-tab" data-category="tin-hoat-dong"><i class="fa-solid fa-briefcase"></i> Tin hoạt động</a></li>
+                    <li><a href="#" class="tab-link news-category-link" data-target="dynamic-news-tab" data-category="trao-doi-kinh-nghiem"><i class="fa-solid fa-comments"></i> Trao đổi kinh nghiệm</a></li>
+                    <li><a href="#" class="tab-link news-category-link" data-target="dynamic-news-tab" data-category="tuong-tac-cong-dan"><i class="fa-solid fa-users-rays"></i> Tương tác công dân</a></li>
                 </ul>
             </li>
             <li><a href="#" class="tab-link" data-target="struct-tab"><i class="fa-solid fa-sitemap"></i> Cơ Cấu Tổ Chức</a></li>
@@ -221,12 +231,12 @@
             </div>
         </div>
 
-        <!-- Quản lý Trang Cập Nhật Bão Lũ -->
-        <div id="baolu-tab" class="tab-content">
+        <!-- Quản lý Trang Danh mục Tin tức động -->
+        <div id="dynamic-news-tab" class="tab-content">
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h3 style="margin-bottom: 0;">Quản lý Tin Tức Bão Lũ</h3>
-                    <button onclick="openBaoLuModal()" style="padding: 8px 15px; background: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: 'Inter', sans-serif; font-weight: 500;">
+                    <h3 id="newsTabTitle" style="margin-bottom: 0;">Quản lý Tin Tức</h3>
+                    <button onclick="openNewsModal()" style="padding: 8px 15px; background: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: 'Inter', sans-serif; font-weight: 500;">
                         <i class="fa-solid fa-plus"></i> Đăng tin mới
                     </button>
                 </div>
@@ -242,8 +252,8 @@
                                 <th style="padding: 15px 12px; text-align: center; color: #475569; font-weight: 600; width: 150px;">Thao tác</th>
                             </tr>
                         </thead>
-                        <tbody id="baoluTableBody">
-                            <!-- Bao lu posts render here -->
+                        <tbody id="newsTableBody">
+                            <!-- News posts render here -->
                         </tbody>
                     </table>
                 </div>
@@ -335,51 +345,51 @@
     </div>
     
     
-    <!-- Bao Lu Modal -->
-    <div id="baoluModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <!-- News Modal Chung -->
+    <div id="newsModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
         <div style="background: white; width: 800px; max-width: 90%; max-height: 90vh; overflow-y: auto; border-radius: 8px; padding: 25px; position: relative;">
-            <button onclick="closeBaoLuModal()" style="position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 20px; cursor: pointer; color: #64748b;">&times;</button>
-            <h3 id="baoluModalTitle" style="margin-top: 0; margin-bottom: 20px; color: #1e293b;">Đăng tin bão lũ mới</h3>
+            <button onclick="closeNewsModal()" style="position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 20px; cursor: pointer; color: #64748b;">&times;</button>
+            <h3 id="newsModalTitle" style="margin-top: 0; margin-bottom: 20px; color: #1e293b;">Đăng tin bài mới</h3>
             
-            <form id="baoluPostForm">
-                <input type="hidden" id="baoluFormId">
+            <form id="newsPostForm">
+                <input type="hidden" id="newsFormId">
                 <div style="margin-bottom: 15px;">
                     <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #334155;">Tiêu đề bài viết <span style="color: red;">*</span></label>
-                    <input type="text" id="baoluFormTitle" required style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; font-family: 'Inter', sans-serif;">
+                    <input type="text" id="newsFormTitle" required style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; font-family: 'Inter', sans-serif;">
                 </div>
                 
                 <div style="margin-bottom: 15px;">
                     <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #334155;">Hình ảnh đại diện (Tải lên hoặc nhập URL)</label>
                     <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
-                        <input type="file" id="baoluFormImageUpload" accept="image/*" style="flex: 1; padding: 5px;">
+                        <input type="file" id="newsFormImageUpload" accept="image/*" style="flex: 1; padding: 5px;">
                         <span style="color: #64748b; font-size: 14px;">Hoặc</span>
-                        <input type="text" id="baoluFormImageUrl" placeholder="https://..." style="flex: 2; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px; font-family: 'Inter', sans-serif;">
+                        <input type="text" id="newsFormImageUrl" placeholder="https://..." style="flex: 2; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px; font-family: 'Inter', sans-serif;">
                     </div>
                 </div>
 
                 <div style="margin-bottom: 15px;">
                     <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #334155;">Nguồn tin</label>
-                    <input type="text" id="baoluFormSource" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; font-family: 'Inter', sans-serif;" placeholder="VD: Báo Thanh Niên">
+                    <input type="text" id="newsFormSource" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; font-family: 'Inter', sans-serif;" placeholder="VD: Báo Thanh Niên">
                 </div>
                 
                 <div style="margin-bottom: 15px;">
                     <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #334155;">Nội dung bài viết</label>
-                    <div id="baoluFormContent" style="height: 200px; background: #fff;"></div>
+                    <div id="newsFormContent" style="height: 200px; background: #fff;"></div>
                 </div>
 
                 <div style="display: flex; gap: 15px;">
                     <div style="flex: 1; margin-bottom: 15px;">
                         <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #334155;">Đường dẫn liên kết (Link gốc)</label>
-                        <input type="url" id="baoluFormLinkUrl" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; font-family: 'Inter', sans-serif;" placeholder="https://...">
+                        <input type="url" id="newsFormLinkUrl" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; font-family: 'Inter', sans-serif;" placeholder="https://...">
                     </div>
                     <div style="flex: 1; margin-bottom: 15px;">
                         <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #334155;">Tên hiển thị cho link</label>
-                        <input type="text" id="baoluFormLinkText" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; font-family: 'Inter', sans-serif;" placeholder="VD: Xem chi tiết tại đây">
+                        <input type="text" id="newsFormLinkText" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; font-family: 'Inter', sans-serif;" placeholder="VD: Xem chi tiết tại đây">
                     </div>
                 </div>
                 
                 <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
-                    <button type="button" onclick="closeBaoLuModal()" style="padding: 8px 15px; background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; font-weight: 500;">Hủy</button>
+                    <button type="button" onclick="closeNewsModal()" style="padding: 8px 15px; background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; font-weight: 500;">Hủy</button>
                     <button type="submit" style="padding: 8px 15px; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">Lưu bài viết</button>
                 </div>
             </form>
