@@ -103,6 +103,7 @@ public sealed class JsonPortalDataStore : IPortalDataStore
         user.Id = Guid.NewGuid().ToString();
         user.RegisterDate = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
         user.Password = PasswordService.HashPassword(user.Password ?? string.Empty);
+        user.Role = AuthTokenService.NormalizeRole(user.Role);
         user.IsActive = true;
         users.Add(user);
         await WriteUsersAsync(users, cancellationToken);
@@ -147,15 +148,23 @@ public sealed class JsonPortalDataStore : IPortalDataStore
             user.Id = Guid.NewGuid().ToString();
             user.RegisterDate = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
             user.Password = PasswordService.HashPassword(string.IsNullOrWhiteSpace(user.Password) ? "123456" : user.Password);
+            user.Role = AuthTokenService.NormalizeRole(user.Role);
             users.Add(user);
             await WriteUsersAsync(users, cancellationToken);
             return (true, "Thêm tài khoản thành công.");
         }
 
         var current = users[index];
+        if (string.Equals(current.Username, "admin", StringComparison.OrdinalIgnoreCase) &&
+            (!user.IsActive || AuthTokenService.NormalizeRole(user.Role) != "Admin"))
+        {
+            return (false, "Không thể hạ quyền hoặc khóa tài khoản admin gốc.");
+        }
+
         if (!string.IsNullOrWhiteSpace(user.Password)) current.Password = PasswordService.HashPassword(user.Password);
         if (user.FullName is not null) current.FullName = user.FullName;
         if (user.Email is not null) current.Email = user.Email;
+        current.Role = AuthTokenService.NormalizeRole(user.Role);
         current.IsActive = user.IsActive;
         users[index] = current;
         await WriteUsersAsync(users, cancellationToken);
@@ -324,6 +333,7 @@ public sealed class JsonPortalDataStore : IPortalDataStore
             Id = user.Id,
             Username = user.Username,
             RegisterDate = user.RegisterDate,
+            Role = AuthTokenService.NormalizeRole(user.Role),
             Email = user.Email,
             DateOfBirth = user.DateOfBirth,
             AvatarUrl = user.AvatarUrl,

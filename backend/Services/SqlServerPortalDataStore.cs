@@ -206,8 +206,9 @@ public sealed class SqlServerPortalDataStore : IPortalDataStore
     public async Task<List<UserDto>> GetUsersAsync(CancellationToken cancellationToken)
     {
         await using var connection = await OpenConnectionAsync(cancellationToken);
-        await using var command = new SqlCommand("""
-            SELECT Id, Username, FullName, Email, DateOfBirth, AvatarUrl, CreatedAt, IsActive
+        var roleColumn = await HasUserRoleColumnAsync(connection, cancellationToken) ? ", Role" : string.Empty;
+        await using var command = new SqlCommand($"""
+            SELECT Id, Username, FullName, Email, DateOfBirth, AvatarUrl, CreatedAt, IsActive{roleColumn}
             FROM Auth.Users
             WHERE IsDeleted = 0
             ORDER BY CreatedAt DESC
@@ -226,7 +227,7 @@ public sealed class SqlServerPortalDataStore : IPortalDataStore
     public async Task<UserDto?> GetUserAsync(string username, CancellationToken cancellationToken)
     {
         await using var connection = await OpenConnectionAsync(cancellationToken);
-        await using var command = BuildUserCommand(connection, username, includePassword: false);
+        await using var command = await BuildUserCommandAsync(connection, username, includePassword: false, requireActive: false, cancellationToken);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         return await reader.ReadAsync(cancellationToken) ? ReadSafeUser(reader) : null;
     }
@@ -234,14 +235,14 @@ public sealed class SqlServerPortalDataStore : IPortalDataStore
     public async Task<UserDto?> LoginAsync(string username, string password, CancellationToken cancellationToken)
     {
         await using var connection = await OpenConnectionAsync(cancellationToken);
-        await using var command = BuildUserCommand(connection, username, includePassword: true);
+        await using var command = await BuildUserCommandAsync(connection, username, includePassword: true, requireActive: true, cancellationToken);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
         {
             return null;
         }
 
-        var passwordHash = reader.GetString(8);
+        var passwordHash = reader.GetString(reader.GetOrdinal("PasswordHash"));
         return PasswordService.VerifyPassword(password, passwordHash) ? ReadSafeUser(reader) : null;
     }
 
@@ -307,13 +308,22 @@ public sealed class SqlServerPortalDataStore : IPortalDataStore
             return (false, "Không tìm thấy người dùng.");
         }
 
-        await using var command = new SqlCommand("""
+        if (string.Equals(username, "admin", StringComparison.OrdinalIgnoreCase) &&
+            (!user.IsActive || AuthTokenService.NormalizeRole(user.Role) != "Admin"))
+        {
+            return (false, "Không thể hạ quyền hoặc khóa tài khoản admin gốc.");
+        }
+
+        var hasRole = await HasUserRoleColumnAsync(connection, cancellationToken);
+        var setRole = hasRole ? ", Role = @Role" : string.Empty;
+        await using var command = new SqlCommand($"""
             UPDATE Auth.Users
             SET FullName = @FullName,
                 Email = @Email,
                 IsActive = @IsActive,
                 PasswordHash = COALESCE(@PasswordHash, PasswordHash),
                 UpdatedAt = SYSUTCDATETIME()
+                {setRole}
             WHERE Username = @Username AND IsDeleted = 0
             """, connection);
 
@@ -322,6 +332,10 @@ public sealed class SqlServerPortalDataStore : IPortalDataStore
         command.Parameters.AddWithValue("@Email", DbValue(user.Email));
         command.Parameters.AddWithValue("@IsActive", user.IsActive);
         command.Parameters.AddWithValue("@PasswordHash", string.IsNullOrWhiteSpace(user.Password) ? DBNull.Value : PasswordService.HashPassword(user.Password));
+        if (hasRole)
+        {
+            command.Parameters.AddWithValue("@Role", AuthTokenService.NormalizeRole(user.Role));
+        }
         await command.ExecuteNonQueryAsync(cancellationToken);
         return (true, "Cập nhật tài khoản thành công.");
     }
@@ -674,13 +688,20 @@ public sealed class SqlServerPortalDataStore : IPortalDataStore
         return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture) > 0;
     }
 
-    private static SqlCommand BuildUserCommand(SqlConnection connection, string username, bool includePassword)
+    private static Task<bool> HasUserRoleColumnAsync(SqlConnection connection, CancellationToken cancellationToken)
     {
+        return HasColumnAsync(connection, "Auth", "Users", "Role", cancellationToken);
+    }
+
+    private static async Task<SqlCommand> BuildUserCommandAsync(SqlConnection connection, string username, bool includePassword, bool requireActive, CancellationToken cancellationToken)
+    {
+        var roleColumn = await HasUserRoleColumnAsync(connection, cancellationToken) ? ", Role" : string.Empty;
         var passwordColumn = includePassword ? ", PasswordHash" : string.Empty;
+        var activeFilter = requireActive ? " AND IsActive = 1" : string.Empty;
         var command = new SqlCommand($"""
-            SELECT Id, Username, FullName, Email, DateOfBirth, AvatarUrl, CreatedAt, IsActive{passwordColumn}
+            SELECT Id, Username, FullName, Email, DateOfBirth, AvatarUrl, CreatedAt, IsActive{roleColumn}{passwordColumn}
             FROM Auth.Users
-            WHERE Username = @Username AND IsDeleted = 0
+            WHERE Username = @Username AND IsDeleted = 0{activeFilter}
             """, connection);
         command.Parameters.AddWithValue("@Username", username);
         return command;
@@ -697,8 +718,24 @@ public sealed class SqlServerPortalDataStore : IPortalDataStore
             DateOfBirth = reader.IsDBNull(4) ? null : reader.GetDateTime(4).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             AvatarUrl = reader.IsDBNull(5) ? null : reader.GetString(5),
             RegisterDate = FormatDateTime(reader.GetDateTime(6)),
-            IsActive = reader.GetBoolean(7)
+            IsActive = reader.GetBoolean(7),
+            Role = HasReaderColumn(reader, "Role") && !reader.IsDBNull(reader.GetOrdinal("Role"))
+                ? AuthTokenService.NormalizeRole(reader.GetString(reader.GetOrdinal("Role")))
+                : "User"
         };
+    }
+
+    private static bool HasReaderColumn(IDataRecord reader, string columnName)
+    {
+        for (var i = 0; i < reader.FieldCount; i++)
+        {
+            if (string.Equals(reader.GetName(i), columnName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static DocumentDto ReadDocument(SqlDataReader reader)
@@ -741,9 +778,12 @@ public sealed class SqlServerPortalDataStore : IPortalDataStore
 
     private static async Task InsertUserAsync(SqlConnection connection, UserDto user, string password, CancellationToken cancellationToken)
     {
-        await using var command = new SqlCommand("""
-            INSERT INTO Auth.Users (Username, PasswordHash, FullName, Email, DateOfBirth, AvatarUrl, IsActive, CreatedAt)
-            VALUES (@Username, @PasswordHash, @FullName, @Email, @DateOfBirth, @AvatarUrl, @IsActive, SYSUTCDATETIME())
+        var hasRole = await HasUserRoleColumnAsync(connection, cancellationToken);
+        var roleColumn = hasRole ? ", Role" : string.Empty;
+        var roleValue = hasRole ? ", @Role" : string.Empty;
+        await using var command = new SqlCommand($"""
+            INSERT INTO Auth.Users (Username, PasswordHash, FullName, Email, DateOfBirth, AvatarUrl, IsActive, CreatedAt{roleColumn})
+            VALUES (@Username, @PasswordHash, @FullName, @Email, @DateOfBirth, @AvatarUrl, @IsActive, SYSUTCDATETIME(){roleValue})
             """, connection);
         command.Parameters.AddWithValue("@Username", EmptyIfNull(user.Username));
         command.Parameters.AddWithValue("@PasswordHash", PasswordService.HashPassword(password));
@@ -752,6 +792,10 @@ public sealed class SqlServerPortalDataStore : IPortalDataStore
         command.Parameters.AddWithValue("@DateOfBirth", DateValue(user.DateOfBirth));
         command.Parameters.AddWithValue("@AvatarUrl", DbValue(user.AvatarUrl));
         command.Parameters.AddWithValue("@IsActive", user.IsActive);
+        if (hasRole)
+        {
+            command.Parameters.AddWithValue("@Role", AuthTokenService.NormalizeRole(user.Role));
+        }
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 

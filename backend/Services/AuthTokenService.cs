@@ -22,7 +22,7 @@ public sealed class AuthTokenService
         var expiresAt = DateTime.UtcNow.AddMinutes(_options.ExpiresMinutes);
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_options.SigningKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-        var role = ResolveRole(user.Username);
+        var role = NormalizeRole(user.Role);
 
         var claims = new List<Claim>
         {
@@ -57,10 +57,9 @@ public sealed class AuthTokenService
         };
     }
 
-    public static string ResolveRole(string? username)
+    public static string NormalizeRole(string? role)
     {
-        // Tạm thời suy luận quyền admin từ tài khoản seed hiện có; phase sau có thể tách thành cột Role riêng trong DB.
-        return !string.IsNullOrWhiteSpace(username) && username.StartsWith("admin", StringComparison.OrdinalIgnoreCase)
+        return string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase)
             ? "Admin"
             : "User";
     }

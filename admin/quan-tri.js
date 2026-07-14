@@ -112,7 +112,7 @@ function renderUsers(users) {
         tr.onmouseout = () => tr.style.background = 'transparent';
         
         let role = '<span style="background: #e2e8f0; color: #475569; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">Người dùng</span>';
-        if ((u.username || '').toLowerCase() === 'admin') {
+        if (u.role === 'Admin') {
             role = '<span style="background: #fef3c7; color: #d97706; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">Quản trị viên</span>';
         }
         
@@ -717,6 +717,7 @@ function openUserModal() {
     document.getElementById('userFormUsername').disabled = false;
     document.getElementById('pwdRequired').style.display = 'inline';
     document.getElementById('pwdHint').style.display = 'none';
+    document.getElementById('userFormRole').value = 'User';
     document.getElementById('userFormActive').value = 'true';
     document.getElementById('userModal').style.display = 'flex';
 }
@@ -743,6 +744,7 @@ function editUser(username) {
     document.getElementById('pwdRequired').style.display = 'none';
     document.getElementById('pwdHint').style.display = 'block';
     
+    document.getElementById('userFormRole').value = user.role === 'Admin' ? 'Admin' : 'User';
     document.getElementById('userFormActive').value = user.isActive === false ? 'false' : 'true';
     
     document.getElementById('userModal').style.display = 'flex';
@@ -779,6 +781,7 @@ document.getElementById('userForm')?.addEventListener('submit', async (e) => {
     const fullName = document.getElementById('userFormFullName').value;
     const email = document.getElementById('userFormEmail').value;
     const password = document.getElementById('userFormPassword').value;
+    const role = document.getElementById('userFormRole').value;
     const isActive = document.getElementById('userFormActive').value === 'true';
     
     if (!isEditingUser && !password) {
@@ -790,6 +793,7 @@ document.getElementById('userForm')?.addEventListener('submit', async (e) => {
         username,
         fullName: fullName || null,
         email: email || null,
+        role,
         isActive
     };
     if (password) {
