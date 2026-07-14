@@ -2,6 +2,19 @@ const API_BASE = 'http://localhost:5000/api';
 let isAvatarChanged = false;
 let currentAvatarUrl = null;
 
+function getAuthHeaders(extraHeaders = {}) {
+    const token = localStorage.getItem('accessToken');
+    const tokenType = localStorage.getItem('tokenType') || 'Bearer';
+    return token
+        ? { ...extraHeaders, Authorization: `${tokenType} ${token}` }
+        : extraHeaders;
+}
+
+function apiFetch(url, options = {}) {
+    const headers = getAuthHeaders(options.headers || {});
+    return fetch(url, { ...options, headers });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const profileContent = document.getElementById('profileContent');
     const loginPrompt = document.getElementById('loginPrompt');
@@ -30,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function loadUserProfile(username) {
     try {
-        const res = await fetch(`${API_BASE}/nguoi-dung/${username}`);
+        const res = await apiFetch(`${API_BASE}/nguoi-dung/${username}`);
         const data = await res.json();
         
         if (data.success && data.user) {
@@ -104,7 +117,7 @@ async function uploadAvatar() {
     formData.append('file', file);
     
     try {
-        const res = await fetch(`${API_BASE}/upload`, {
+        const res = await apiFetch(`${API_BASE}/upload`, {
             method: 'POST',
             body: formData
         });
@@ -169,7 +182,7 @@ async function handleProfileUpdate(e) {
         }
         
         // Gọi API
-        const res = await fetch(`${API_BASE}/nguoi-dung/${username}`, {
+        const res = await apiFetch(`${API_BASE}/nguoi-dung/${username}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json'

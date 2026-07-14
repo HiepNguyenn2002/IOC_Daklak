@@ -162,6 +162,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             const data = await res.json();
             if (data.success) {
                 localStorage.setItem('currentUser', data.user.username);
+                if (data.accessToken) {
+                    localStorage.setItem('accessToken', data.accessToken);
+                    localStorage.setItem('tokenType', data.tokenType || 'Bearer');
+                    if (data.expiresAt) localStorage.setItem('tokenExpiresAt', data.expiresAt);
+                }
                 if (data.user.fullName) {
                     localStorage.setItem('currentFullName', data.user.fullName);
                     currentFullName = data.user.fullName;
@@ -201,6 +206,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             const data = await res.json();
             if (data.success) {
                 localStorage.setItem('currentUser', data.user.username);
+                if (data.accessToken) {
+                    localStorage.setItem('accessToken', data.accessToken);
+                    localStorage.setItem('tokenType', data.tokenType || 'Bearer');
+                    if (data.expiresAt) localStorage.setItem('tokenExpiresAt', data.expiresAt);
+                }
                 localStorage.removeItem('currentFullName');
                 currentFullName = null;
                 currentUser = data.user.username;
@@ -222,6 +232,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         e.preventDefault();
         localStorage.removeItem('currentUser');
         localStorage.removeItem('currentFullName');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('tokenType');
+        localStorage.removeItem('tokenExpiresAt');
         currentUser = null;
         currentFullName = null;
         updateAuthUI();

@@ -1,6 +1,13 @@
 # .NET Build artifacts
 backend/bin/
 backend/obj/
+.tmp/
+
+# Backend local/report artifacts
+backend/BAO_CAO_TIEN_DO.md
+backend/data/
+backend/database/
+backend/wwwroot/uploads/
 
 # OS files
 .DS_Store

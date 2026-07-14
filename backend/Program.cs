@@ -1,577 +1,501 @@
-using System.Collections.Generic;
-using System.Linq;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using System;
-using System.IO;
+using System.Text.Json.Nodes;
+using Backend.Models;
+using Backend.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.Options;
+using System.Security.Claims;
+using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
 
 var builder = WebApplication.CreateBuilder(args);
+var pascalCaseJson = new JsonSerializerOptions { PropertyNamingPolicy = null };
+var projectRoot = Directory.GetParent(builder.Environment.ContentRootPath)?.FullName
+    ?? builder.Environment.ContentRootPath;
+var frontendRoot = projectRoot;
 
-// Bật CORS để frontend có thể gọi API nếu chạy ở port khác
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
+
+builder.Services.Configure<UploadOptions>(builder.Configuration.GetSection("Upload"));
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
+
+var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
+var jwtKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey));
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = jwtOptions.Issuer,
+            ValidateAudience = true,
+            ValidAudience = jwtOptions.Audience,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = jwtKey,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromMinutes(1)
+        };
+    });
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+});
+
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
+        // Cho phép frontend tĩnh gọi API trong giai đoạn phát triển.
         policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
     });
 });
 
+builder.Services.AddSingleton(GetNewsCategories());
+builder.Services.AddSingleton<IPortalDataStore>(serviceProvider =>
+{
+    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+    var provider = configuration["DataProvider"];
+
+    // Cho phép chuyển nguồn dữ liệu bằng appsettings.json: "Json" để chạy nhanh, "SqlServer" để dùng database thật.
+    if (string.Equals(provider, "SqlServer", StringComparison.OrdinalIgnoreCase))
+    {
+        return new SqlServerPortalDataStore(configuration);
+    }
+
+    var environment = serviceProvider.GetRequiredService<IWebHostEnvironment>();
+    return new JsonPortalDataStore(environment);
+});
+builder.Services.AddSingleton<JsonToSqlMigrationService>();
+builder.Services.AddSingleton<AuthTokenService>();
+
 var app = builder.Build();
 
 app.UseCors();
-// Cung cấp các tệp tĩnh (hình ảnh tải lên) từ thư mục wwwroot
-app.UseStaticFiles(); 
+app.UseStaticFiles();
+UseFrontendStaticFiles(app, frontendRoot);
+app.UseAuthentication();
+app.UseAuthorization();
 
-// Đảm bảo thư mục dữ liệu tồn tại
-string dataDir = Path.Combine(builder.Environment.ContentRootPath, "data");
-Directory.CreateDirectory(dataDir);
-string configPath = Path.Combine(dataDir, "cau-hinh.json");
-string newsPath = Path.Combine(dataDir, "tin-tuc.json");
-string aboutPath = Path.Combine(dataDir, "chuc-nang-nhiem-vu.json");
-string supportPath = Path.Combine(dataDir, "dau-moi-ho-tro.json");
-string historyPath = Path.Combine(dataDir, "lich-su-hinh-thanh.json");
-string productsPath = Path.Combine(dataDir, "san-pham-tieu-bieu.json");
-string orgChartPath = Path.Combine(dataDir, "so-do-to-chuc.json");
-string structPath = Path.Combine(dataDir, "co-cau-to-chuc.json");
-// Khởi tạo các danh mục tin tức (sử dụng Dictionary để đăng ký tĩnh, bảo mật và dễ bảo trì)
-var newsCategories = new Dictionary<string, string>
+MapFrontendRoutes(app, frontendRoot);
+
+app.MapGet("/api", (IConfiguration configuration) =>
 {
-    { "cap-nhat-bao-lu", "Cập nhật bão lũ" },
-    { "cds-doi-moi-sang-tao", "CĐS - Đổi mới sáng tạo" },
-    { "chi-dao-dieu-hanh", "Chỉ đạo điều hành" },
-    { "cong-tac-xay-dung-dang", "Công tác xây dựng Đảng" },
-    { "giai-phap-an-toan-mang", "Giải pháp An toàn mạng" },
-    { "giai-phap-an-toan-thong-tin", "Giải pháp An toàn thông tin" },
-    { "thong-bao", "Thông báo" },
-    { "tieu-chuan-chat-luong", "Tiêu chuẩn - Chất lượng" },
-    { "tin-hoat-dong", "Tin hoạt động" },
-    { "trao-doi-kinh-nghiem", "Trao đổi kinh nghiệm" },
-    { "tuong-tac-cong-dan", "Tương tác công dân" }
+    return Results.Json(new
+    {
+        success = true,
+        service = "IOC Daklak Backend API",
+        environment = app.Environment.EnvironmentName,
+        dataProvider = configuration["DataProvider"] ?? "Json",
+        health = "/api/health",
+        apiBase = "/api"
+    });
+});
+
+app.MapGet("/api/health", (IConfiguration configuration) =>
+{
+    return Results.Json(new
+    {
+        success = true,
+        status = "Healthy",
+        service = "IOC Daklak Backend API",
+        dataProvider = configuration["DataProvider"] ?? "Json",
+        checkedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+    });
+});
+
+app.MapGet("/api/auth/me", (ClaimsPrincipal user) =>
+{
+    return Results.Json(new
+    {
+        success = true,
+        username = user.Identity?.Name,
+        userId = user.FindFirstValue(ClaimTypes.NameIdentifier),
+        role = user.FindFirstValue(ClaimTypes.Role)
+    });
+}).RequireAuthorization();
+
+app.MapGet("/api/trang-chu", async (IPortalDataStore store, CancellationToken cancellationToken) =>
+{
+    return Results.Json(await store.GetHomePageAsync(cancellationToken));
+});
+
+app.MapGet("/api/thong-bao-chung", async (int? take, IPortalDataStore store, CancellationToken cancellationToken) =>
+{
+    return Results.Json(await store.GetAnnouncementsAsync(take ?? 5, cancellationToken));
+});
+
+app.MapGet("/api/loai-van-ban", async (IPortalDataStore store, CancellationToken cancellationToken) =>
+{
+    return Results.Json(await store.GetDocumentTypesAsync(cancellationToken));
+});
+
+app.MapGet("/api/van-ban", async (string? type, int? take, IPortalDataStore store, CancellationToken cancellationToken) =>
+{
+    return Results.Json(await store.GetDocumentsAsync(type, take ?? 20, cancellationToken));
+});
+
+app.MapGet("/api/tim-kiem", async (string? q, int? take, IPortalDataStore store, CancellationToken cancellationToken) =>
+{
+    if (string.IsNullOrWhiteSpace(q))
+    {
+        return Results.BadRequest(new { success = false, message = "Vui lòng nhập từ khóa tìm kiếm." });
+    }
+
+    return Results.Json(new
+    {
+        success = true,
+        keyword = q.Trim(),
+        results = await store.SearchAsync(q, take ?? 20, cancellationToken)
+    });
+});
+
+var contentPages = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+{
+    ["chuc-nang-nhiem-vu"] = "Trang chức năng, nhiệm vụ",
+    ["dau-moi-ho-tro"] = "Trang đầu mối hỗ trợ",
+    ["lich-su-hinh-thanh"] = "Trang lịch sử hình thành",
+    ["san-pham-tieu-bieu"] = "Trang sản phẩm tiêu biểu",
+    ["so-do-to-chuc"] = "Trang sơ đồ tổ chức",
+    ["co-cau-to-chuc"] = "Trang cơ cấu tổ chức"
 };
 
-foreach (var cat in newsCategories)
+app.MapGet("/api/cau-hinh", async (IPortalDataStore store, CancellationToken cancellationToken) =>
 {
-    string path = Path.Combine(dataDir, $"{cat.Key}.json");
-    if (!File.Exists(path))
+    return Results.Json(await store.GetConfigAsync(cancellationToken));
+});
+
+app.MapPost("/api/cau-hinh", async (JsonObject config, IPortalDataStore store, CancellationToken cancellationToken) =>
+{
+    await store.SaveConfigAsync(config, cancellationToken);
+    return Results.Json(new { success = true, message = "Cấu hình đã được lưu." });
+}).RequireAuthorization("AdminOnly");
+
+foreach (var page in contentPages)
+{
+    var slug = page.Key;
+    var label = page.Value;
+
+    app.MapGet($"/api/{slug}", async (IPortalDataStore store, CancellationToken cancellationToken) =>
     {
-        var initialData = new { title = cat.Value, posts = new List<object>() };
-        File.WriteAllText(path, JsonSerializer.Serialize(initialData));
+        return Results.Json(await store.GetContentPageAsync(slug, cancellationToken));
+    });
+
+    app.MapPost($"/api/{slug}", async (ContentPageDto payload, IPortalDataStore store, CancellationToken cancellationToken) =>
+    {
+        await store.SaveContentPageAsync(slug, payload, cancellationToken);
+        return Results.Json(new { success = true, message = $"{label} đã được lưu." });
+    }).RequireAuthorization("AdminOnly");
+}
+
+var newsCategories = app.Services.GetRequiredService<IReadOnlyList<NewsCategoryInfo>>();
+foreach (var category in newsCategories)
+{
+    app.MapGet($"/api/{category.Slug}", async (IPortalDataStore store, CancellationToken cancellationToken) =>
+    {
+        return Results.Json(await store.GetNewsCategoryAsync(category, cancellationToken));
+    });
+
+    app.MapPost($"/api/{category.Slug}", async (CategoryPageDto payload, IPortalDataStore store, CancellationToken cancellationToken) =>
+    {
+        await store.SaveNewsCategoryAsync(category, payload, cancellationToken);
+        return Results.Json(new { success = true, message = $"Trang {category.Title} đã được lưu." });
+    }).RequireAuthorization("AdminOnly");
+}
+
+app.MapGet("/api/tin-tuc", async (IPortalDataStore store, CancellationToken cancellationToken) =>
+{
+    return Results.Json(await store.GetMainNewsAsync(cancellationToken));
+});
+
+// Giữ alias tiếng Anh vì một số file frontend cũ đang gọi /api/news.
+app.MapGet("/api/news", async (IPortalDataStore store, CancellationToken cancellationToken) =>
+{
+    return Results.Json(await store.GetMainNewsAsync(cancellationToken));
+});
+
+app.MapPost("/api/tin-tuc", async (NewsPostDto payload, IPortalDataStore store, CancellationToken cancellationToken) =>
+{
+    await store.AddMainNewsAsync(payload, cancellationToken);
+    return Results.Json(new { success = true, message = "Đăng tin thành công." });
+}).RequireAuthorization("AdminOnly");
+
+app.MapPost("/api/admin/migrate-json", async (
+    JsonToSqlMigrationService migrationService,
+    IConfiguration configuration,
+    CancellationToken cancellationToken) =>
+{
+    if (!string.Equals(configuration["DataProvider"], "SqlServer", StringComparison.OrdinalIgnoreCase))
+    {
+        return (IResult)Results.BadRequest(new
+        {
+            success = false,
+            message = "Chỉ chạy migrate JSON khi DataProvider đang là SqlServer."
+        });
     }
-}
-string usersPath = Path.Combine(dataDir, "nguoi-dung.json");
-string commentsPath = Path.Combine(dataDir, "danh-sach-binh-luan.json");
 
-// Đảm bảo các tệp dữ liệu mặc định tồn tại
-if (!File.Exists(configPath)) File.WriteAllText(configPath, "{}");
-if (!File.Exists(newsPath)) File.WriteAllText(newsPath, "[]");
-if (!File.Exists(aboutPath)) File.WriteAllText(aboutPath, "{\"title\":\"\",\"content\":\"\"}");
-if (!File.Exists(supportPath)) File.WriteAllText(supportPath, "{\"title\":\"\",\"content\":\"\"}");
-if (!File.Exists(historyPath)) File.WriteAllText(historyPath, "{\"title\":\"\",\"content\":\"\"}");
-if (!File.Exists(productsPath)) File.WriteAllText(productsPath, "{\"title\":\"\",\"content\":\"\"}");
-if (!File.Exists(orgChartPath)) File.WriteAllText(orgChartPath, "{\"title\":\"\",\"content\":\"\"}");
-if (!File.Exists(structPath)) File.WriteAllText(structPath, "{\"title\":\"\",\"content\":\"\"}");
+    var report = await migrationService.MigrateAsync(cancellationToken);
+    return (IResult)Results.Json(new { success = true, message = "Migrate JSON sang SQL Server hoàn tất.", report });
+}).RequireAuthorization("AdminOnly");
 
-if (!File.Exists(usersPath)) File.WriteAllText(usersPath, "[]");
-if (!File.Exists(commentsPath)) File.WriteAllText(commentsPath, "[]");
-
-// API: Lấy cấu hình
-app.MapGet("/api/cau-hinh", async (HttpContext context) =>
-{
-    var configJson = await File.ReadAllTextAsync(configPath);
-    context.Response.ContentType = "application/json";
-    await context.Response.WriteAsync(configJson);
-});
-
-// API: Cập nhật cấu hình
-app.MapPost("/api/cau-hinh", async (HttpContext context) =>
-{
-    using var reader = new StreamReader(context.Request.Body);
-    var body = await reader.ReadToEndAsync();
-    await File.WriteAllTextAsync(configPath, body);
-    await context.Response.WriteAsJsonAsync(new { success = true, message = "Cấu hình đã được lưu." });
-});
-
-// API: Lấy thông tin giới thiệu
-app.MapGet("/api/chuc-nang-nhiem-vu", async (HttpContext context) =>
-{
-    var aboutJson = await File.ReadAllTextAsync(aboutPath);
-    context.Response.ContentType = "application/json";
-    await context.Response.WriteAsync(aboutJson);
-});
-
-// API: Cập nhật thông tin giới thiệu
-app.MapPost("/api/chuc-nang-nhiem-vu", async (HttpContext context) =>
-{
-    using var reader = new StreamReader(context.Request.Body);
-    var body = await reader.ReadToEndAsync();
-    await File.WriteAllTextAsync(aboutPath, body);
-    await context.Response.WriteAsJsonAsync(new { success = true, message = "Trang giới thiệu đã được lưu." });
-});
-
-// API: Lấy thông tin hỗ trợ
-app.MapGet("/api/dau-moi-ho-tro", async (HttpContext context) =>
-{
-    var supportJson = await File.ReadAllTextAsync(supportPath);
-    context.Response.ContentType = "application/json";
-    await context.Response.WriteAsync(supportJson);
-});
-
-// API: Cập nhật thông tin hỗ trợ
-app.MapPost("/api/dau-moi-ho-tro", async (HttpContext context) =>
-{
-    using var reader = new StreamReader(context.Request.Body);
-    var body = await reader.ReadToEndAsync();
-    await File.WriteAllTextAsync(supportPath, body);
-    await context.Response.WriteAsJsonAsync(new { success = true, message = "Trang hỗ trợ đã được lưu." });
-});
-
-// API: Lấy lịch sử hình thành
-app.MapGet("/api/lich-su-hinh-thanh", async (HttpContext context) =>
-{
-    var historyJson = await File.ReadAllTextAsync(historyPath);
-    context.Response.ContentType = "application/json";
-    await context.Response.WriteAsync(historyJson);
-});
-
-// API: Cập nhật lịch sử hình thành
-app.MapPost("/api/lich-su-hinh-thanh", async (HttpContext context) =>
-{
-    using var reader = new StreamReader(context.Request.Body);
-    var body = await reader.ReadToEndAsync();
-    await File.WriteAllTextAsync(historyPath, body);
-    await context.Response.WriteAsJsonAsync(new { success = true, message = "Trang lịch sử đã được lưu." });
-});
-
-// API: Lấy sản phẩm tiêu biểu
-app.MapGet("/api/san-pham-tieu-bieu", async (HttpContext context) =>
-{
-    var productsJson = await File.ReadAllTextAsync(productsPath);
-    context.Response.ContentType = "application/json";
-    await context.Response.WriteAsync(productsJson);
-});
-
-// API: Cập nhật sản phẩm tiêu biểu
-app.MapPost("/api/san-pham-tieu-bieu", async (HttpContext context) =>
-{
-    using var reader = new StreamReader(context.Request.Body);
-    var body = await reader.ReadToEndAsync();
-    await File.WriteAllTextAsync(productsPath, body);
-    await context.Response.WriteAsJsonAsync(new { success = true, message = "Trang sản phẩm tiêu biểu đã được lưu." });
-});
-
-// API: Lấy sơ đồ tổ chức
-app.MapGet("/api/so-do-to-chuc", async (HttpContext context) =>
-{
-    var orgChartJson = await File.ReadAllTextAsync(orgChartPath);
-    context.Response.ContentType = "application/json";
-    await context.Response.WriteAsync(orgChartJson);
-});
-
-// API: Cập nhật sơ đồ tổ chức
-app.MapPost("/api/so-do-to-chuc", async (HttpContext context) =>
-{
-    using var reader = new StreamReader(context.Request.Body);
-    var body = await reader.ReadToEndAsync();
-    await File.WriteAllTextAsync(orgChartPath, body);
-    await context.Response.WriteAsJsonAsync(new { success = true, message = "Trang sơ đồ tổ chức đã được lưu." });
-});
-
-// API: Lấy cơ cấu tổ chức
-app.MapGet("/api/co-cau-to-chuc", async (HttpContext context) =>
-{
-    var structJson = await File.ReadAllTextAsync(structPath);
-    context.Response.ContentType = "application/json";
-    await context.Response.WriteAsync(structJson);
-});
-
-// API: Cập nhật cơ cấu tổ chức
-app.MapPost("/api/co-cau-to-chuc", async (HttpContext context) =>
-{
-    using var reader = new StreamReader(context.Request.Body);
-    var body = await reader.ReadToEndAsync();
-    await File.WriteAllTextAsync(structPath, body);
-    await context.Response.WriteAsJsonAsync(new { success = true, message = "Trang cơ cấu tổ chức đã được lưu." });
-});
-
-// --- API DANH MỤC TIN TỨC (Đăng ký tĩnh ở startup để đảm bảo hiệu năng và bảo mật tối đa) ---
-foreach (var cat in newsCategories)
-{
-    string filePath = Path.Combine(dataDir, $"{cat.Key}.json");
-
-    app.MapGet($"/api/{cat.Key}", async (HttpContext context) =>
-    {
-        var json = await File.ReadAllTextAsync(filePath);
-        context.Response.ContentType = "application/json";
-        await context.Response.WriteAsync(json);
-    });
-
-    app.MapPost($"/api/{cat.Key}", async (HttpContext context) =>
-    {
-        using var reader = new StreamReader(context.Request.Body);
-        var body = await reader.ReadToEndAsync();
-        await File.WriteAllTextAsync(filePath, body);
-        await context.Response.WriteAsJsonAsync(new { success = true, message = $"Trang {cat.Value} đã được lưu." });
-    });
-}
-
-// API: Lấy danh sách tin tức
-app.MapGet("/api/tin-tuc", async (HttpContext context) =>
-{
-    var newsJson = await File.ReadAllTextAsync(newsPath);
-    context.Response.ContentType = "application/json";
-    await context.Response.WriteAsync(newsJson);
-});
-
-// API: Thêm tin tức mới
-app.MapPost("/api/tin-tuc", async (HttpContext context) =>
-{
-    using var reader = new StreamReader(context.Request.Body);
-    var body = await reader.ReadToEndAsync();
-    
-    // Phân tích danh sách tin tức hiện tại
-    var newsJson = await File.ReadAllTextAsync(newsPath);
-    var newsList = JsonSerializer.Deserialize<JsonElement[]>(newsJson) ?? Array.Empty<JsonElement>();
-    
-    // Tạo mảng mới với tin tức mới đưa lên đầu
-    var newItem = JsonSerializer.Deserialize<JsonElement>(body);
-    var updatedList = new JsonElement[newsList.Length + 1];
-    updatedList[0] = newItem;
-    Array.Copy(newsList, 0, updatedList, 1, newsList.Length);
-    
-    await File.WriteAllTextAsync(newsPath, JsonSerializer.Serialize(updatedList, new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
-    await context.Response.WriteAsJsonAsync(new { success = true, message = "Đăng tin thành công." });
-});
-
-// API: Tải lên hình ảnh
-app.MapPost("/api/upload", async (HttpContext context) =>
+app.MapPost("/api/upload", async (
+    HttpContext context,
+    IWebHostEnvironment environment,
+    IOptions<UploadOptions> uploadOptions,
+    CancellationToken cancellationToken) =>
 {
     if (!context.Request.HasFormContentType || !context.Request.Form.Files.Any())
     {
-        context.Response.StatusCode = 400;
-        await context.Response.WriteAsJsonAsync(new { success = false, message = "Không tìm thấy file." });
-        return;
+        return Results.BadRequest(new { success = false, message = "Không tìm thấy file." });
     }
 
     var file = context.Request.Form.Files[0];
-    var uploadsDir = Path.Combine(builder.Environment.WebRootPath, "uploads");
+    var options = uploadOptions.Value;
+    var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+
+    if (!options.AllowedExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
+    {
+        return Results.BadRequest(new { success = false, message = "Định dạng file không được hỗ trợ." });
+    }
+
+    if (file.Length <= 0 || file.Length > options.MaxFileSizeBytes)
+    {
+        return Results.BadRequest(new { success = false, message = "Dung lượng file không hợp lệ." });
+    }
+
+    var webRootPath = environment.WebRootPath ?? Path.Combine(environment.ContentRootPath, "wwwroot");
+    var uploadsDir = Path.Combine(webRootPath, "uploads");
     Directory.CreateDirectory(uploadsDir);
 
-    var fileName = Guid.NewGuid().ToString() + Path.GetExtension(file.FileName);
+    // Sinh tên file mới để tránh ghi đè và tránh tin vào tên file người dùng gửi lên.
+    var fileName = $"{Guid.NewGuid():N}{extension}";
     var filePath = Path.Combine(uploadsDir, fileName);
 
-    using (var stream = new FileStream(filePath, FileMode.Create))
+    await using var stream = new FileStream(filePath, FileMode.CreateNew);
+    await file.CopyToAsync(stream, cancellationToken);
+
+    return Results.Json(new { success = true, url = $"/uploads/{fileName}" });
+}).RequireAuthorization();
+
+app.MapGet("/api/nguoi-dung", async (IPortalDataStore store, CancellationToken cancellationToken) =>
+{
+    return Results.Json(await store.GetUsersAsync(cancellationToken));
+}).RequireAuthorization("AdminOnly");
+
+app.MapGet("/api/nguoi-dung/{username}", async (string username, IPortalDataStore store, CancellationToken cancellationToken) =>
+{
+    var user = await store.GetUserAsync(username, cancellationToken);
+    return user is null
+        ? (IResult)Results.NotFound(new { success = false, message = "Không tìm thấy người dùng." })
+        : Results.Json(new { success = true, user });
+});
+
+app.MapPut("/api/nguoi-dung/{username}", async (string username, UserDto payload, IPortalDataStore store, ClaimsPrincipal user, CancellationToken cancellationToken) =>
+{
+    var currentUsername = user.Identity?.Name;
+    var isAdmin = user.IsInRole("Admin");
+    if (!isAdmin && !string.Equals(currentUsername, username, StringComparison.OrdinalIgnoreCase))
     {
-        await file.CopyToAsync(stream);
+        return Results.Forbid();
     }
 
-    var fileUrl = $"/uploads/{fileName}";
-    await context.Response.WriteAsJsonAsync(new { success = true, url = fileUrl });
-});
+    var result = await store.UpdateUserAsync(username, payload, cancellationToken);
+    return result.Success
+        ? (IResult)Results.Json(new { success = true, message = result.Message, user = result.User })
+        : Results.NotFound(new { success = false, message = result.Message });
+}).RequireAuthorization();
 
-
-// --- API NGƯỜI DÙNG & XÁC THỰC ---
-app.MapGet("/api/nguoi-dung", async (HttpContext context) =>
+app.MapPost("/api/register", async (UserDto payload, IPortalDataStore store, AuthTokenService tokenService, CancellationToken cancellationToken) =>
 {
-    var usersJson = await File.ReadAllTextAsync(usersPath);
-    var usersList = JsonSerializer.Deserialize<List<User>>(usersJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<User>();
-    // Ẩn mật khẩu để đảm bảo an toàn trước khi trả về
-    var safeList = usersList.Select(u => new { u.Id, u.Username, u.FullName, u.Email, u.DateOfBirth, u.AvatarUrl, u.RegisterDate, u.IsActive }).ToList();
-    await context.Response.WriteAsJsonAsync(safeList);
+    var result = await store.RegisterAsync(payload, cancellationToken);
+    return result.Success
+        ? (IResult)Results.Json(tokenService.CreateAuthResponse(result.User!, result.Message))
+        : Results.BadRequest(new { success = false, message = result.Message });
 });
 
-app.MapGet("/api/nguoi-dung/{username}", async (HttpContext context, string username) =>
+app.MapPost("/api/login", async (UserDto payload, IPortalDataStore store, AuthTokenService tokenService, CancellationToken cancellationToken) =>
 {
-    var usersJson = await File.ReadAllTextAsync(usersPath);
-    var usersList = JsonSerializer.Deserialize<List<User>>(usersJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<User>();
-    
-    var user = usersList.FirstOrDefault(u => string.Equals(u.Username, username, StringComparison.OrdinalIgnoreCase));
-    
-
-    if (user == null) {
-        context.Response.StatusCode = 404;
-        await context.Response.WriteAsJsonAsync(new { success = false, message = "Không tìm thấy người dùng." });
-        return;
+    if (string.IsNullOrWhiteSpace(payload.Username) || string.IsNullOrWhiteSpace(payload.Password))
+    {
+        return Results.BadRequest(new { success = false, message = "Vui lòng nhập tên đăng nhập và mật khẩu." });
     }
-    
-    // Không trả về mật khẩu
-    await context.Response.WriteAsJsonAsync(new { 
-        success = true, 
-        user = new { 
-            user.Username, 
-            user.RegisterDate, 
-            user.Email, 
-            user.DateOfBirth, 
-            user.AvatarUrl, 
-            user.FullName,
-            user.IsActive
-        } 
-    });
+
+    var user = await store.LoginAsync(payload.Username, payload.Password, cancellationToken);
+    return user is null
+        ? (IResult)Results.Json(new { success = false, message = "Sai tên đăng nhập hoặc mật khẩu." }, statusCode: StatusCodes.Status401Unauthorized)
+        : Results.Json(tokenService.CreateAuthResponse(user, "Đăng nhập thành công."));
 });
 
-app.MapPut("/api/nguoi-dung/{username}", async (HttpContext context, string username) =>
+app.MapGet("/api/binh-luan", async (string pageId, IPortalDataStore store, CancellationToken cancellationToken) =>
 {
-    using var reader = new StreamReader(context.Request.Body);
-    var body = await reader.ReadToEndAsync();
-    var updateReq = JsonSerializer.Deserialize<User>(body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-    
-    var usersJson = await File.ReadAllTextAsync(usersPath);
-    var usersList = JsonSerializer.Deserialize<List<User>>(usersJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<User>();
-    
-    var userIndex = usersList.FindIndex(u => string.Equals(u.Username, username, StringComparison.OrdinalIgnoreCase));
-    if (userIndex == -1) {
-        context.Response.StatusCode = 404;
-        await context.Response.WriteAsJsonAsync(new { success = false, message = "Không tìm thấy người dùng." });
-        return;
-    }
-    
-    var user = usersList[userIndex];
-    
-    // Xác minh mật khẩu cũ nếu muốn đổi mật khẩu
-    if (!string.IsNullOrEmpty(updateReq.Password)) {
-        // Ở đây chúng ta tạm thời cập nhật mật khẩu trực tiếp cho đơn giản.
-        // Trong ứng dụng thực tế cần xác minh mật khẩu cũ.
-        user.Password = updateReq.Password;
-    }
-    
-    if (updateReq.Email != null) user.Email = updateReq.Email;
-    if (updateReq.DateOfBirth != null) user.DateOfBirth = updateReq.DateOfBirth;
-    if (updateReq.AvatarUrl != null) user.AvatarUrl = updateReq.AvatarUrl;
-    if (updateReq.FullName != null) user.FullName = updateReq.FullName;
-    
-    usersList[userIndex] = user;
-    
-    await File.WriteAllTextAsync(usersPath, JsonSerializer.Serialize(usersList, new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
-    
-    await context.Response.WriteAsJsonAsync(new { success = true, message = "Cập nhật thành công.", user = new { user.Username, user.Email, user.DateOfBirth, user.AvatarUrl, user.FullName } });
+    // API bình luận cũ trả PascalCase, frontend hiện tại đang đọc trực tiếp các field này.
+    return Results.Json(await store.GetCommentsAsync(pageId, cancellationToken), pascalCaseJson);
 });
 
-app.MapPost("/api/register", async (HttpContext context) =>
+app.MapPost("/api/binh-luan", async (CommentDto payload, IPortalDataStore store, CancellationToken cancellationToken) =>
 {
-    using var reader = new StreamReader(context.Request.Body);
-    var body = await reader.ReadToEndAsync();
-    var newUser = JsonSerializer.Deserialize<User>(body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-    
-    var usersJson = await File.ReadAllTextAsync(usersPath);
-    var usersList = JsonSerializer.Deserialize<List<User>>(usersJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<User>();
-    
-    if (usersList.Any(u => u.Username == newUser.Username)) {
-        context.Response.StatusCode = 400;
-        await context.Response.WriteAsJsonAsync(new { success = false, message = "Tên đăng nhập đã tồn tại." });
-        return;
-    }
-    
-    newUser.Id = Guid.NewGuid().ToString();
-    newUser.RegisterDate = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-    usersList.Add(newUser);
-    
-    await File.WriteAllTextAsync(usersPath, JsonSerializer.Serialize(usersList, new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
-    await context.Response.WriteAsJsonAsync(new { success = true, message = "Đăng ký thành công.", user = new { newUser.Username, newUser.FullName } });
+    var comment = await store.AddCommentAsync(payload, cancellationToken);
+    return Results.Json(new { success = true, message = "Đã gửi bình luận.", comment });
 });
 
-app.MapPost("/api/login", async (HttpContext context) =>
+app.MapPost("/api/binh-luan/{id}/like", async (string id, IPortalDataStore store, CancellationToken cancellationToken) =>
 {
-    using var reader = new StreamReader(context.Request.Body);
-    var body = await reader.ReadToEndAsync();
-    var loginReq = JsonSerializer.Deserialize<User>(body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-    
-    var usersJson = await File.ReadAllTextAsync(usersPath);
-    var usersList = JsonSerializer.Deserialize<List<User>>(usersJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<User>();
-    
-    var user = usersList.FirstOrDefault(u => u.Username == loginReq.Username && u.Password == loginReq.Password);
-    if (user == null) {
-        context.Response.StatusCode = 401;
-        await context.Response.WriteAsJsonAsync(new { success = false, message = "Sai tên đăng nhập hoặc mật khẩu." });
-        return;
-    }
-    
-    if (!user.IsActive) {
-        context.Response.StatusCode = 403;
-        await context.Response.WriteAsJsonAsync(new { success = false, message = "Tài khoản của bạn đã bị khóa." });
-        return;
-    }
-    
-    await context.Response.WriteAsJsonAsync(new { success = true, message = "Đăng nhập thành công.", user = new { user.Username, user.FullName } });
+    var likes = await store.VoteCommentAsync(id, isLike: true, cancellationToken);
+    return likes is null
+        ? (IResult)Results.NotFound(new { success = false, message = "Không tìm thấy bình luận." })
+        : Results.Json(new { success = true, likes });
 });
 
-// --- API BÌNH LUẬN ---
-app.MapGet("/api/binh-luan", async (HttpContext context, string pageId) =>
+app.MapPost("/api/binh-luan/{id}/dislike", async (string id, IPortalDataStore store, CancellationToken cancellationToken) =>
 {
-    var commentsJson = await File.ReadAllTextAsync(commentsPath);
-    var commentsList = JsonSerializer.Deserialize<List<Comment>>(commentsJson) ?? new List<Comment>();
-    
-    var pageComments = commentsList.Where(c => c.PageId == pageId).ToList();
-    
-    context.Response.ContentType = "application/json";
-    await context.Response.WriteAsync(JsonSerializer.Serialize(pageComments));
+    var dislikes = await store.VoteCommentAsync(id, isLike: false, cancellationToken);
+    return dislikes is null
+        ? (IResult)Results.NotFound(new { success = false, message = "Không tìm thấy bình luận." })
+        : Results.Json(new { success = true, dislikes });
 });
 
-app.MapPost("/api/binh-luan", async (HttpContext context) =>
+app.MapPost("/api/admin/nguoi-dung", async (UserDto payload, IPortalDataStore store, CancellationToken cancellationToken) =>
 {
-    using var reader = new StreamReader(context.Request.Body);
-    var body = await reader.ReadToEndAsync();
-    var newComment = JsonSerializer.Deserialize<Comment>(body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-    
-    var commentsJson = await File.ReadAllTextAsync(commentsPath);
-    var commentsList = JsonSerializer.Deserialize<List<Comment>>(commentsJson) ?? new List<Comment>();
-    
-    newComment.Id = Guid.NewGuid().ToString();
-    newComment.CreatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-    newComment.Likes = 0;
-    newComment.Dislikes = 0;
-    
-    // Find AvatarUrl
-    var usersJson = await File.ReadAllTextAsync(usersPath);
-    var usersList = JsonSerializer.Deserialize<List<User>>(usersJson) ?? new List<User>();
-    var user = usersList.FirstOrDefault(u => u.Username == newComment.Username);
-    newComment.AvatarUrl = user?.AvatarUrl ?? "";
-    
-    commentsList.Add(newComment);
-    
-    await File.WriteAllTextAsync(commentsPath, JsonSerializer.Serialize(commentsList, new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
-    await context.Response.WriteAsJsonAsync(new { success = true, message = "Đã gửi bình luận.", comment = newComment });
-});
+    var result = await store.AdminSaveUserAsync(null, payload, cancellationToken);
+    return result.Success
+        ? (IResult)Results.Json(new { success = true, message = result.Message })
+        : Results.BadRequest(new { success = false, message = result.Message });
+}).RequireAuthorization("AdminOnly");
 
-app.MapPost("/api/binh-luan/{id}/like", async (HttpContext context, string id) =>
+app.MapPut("/api/admin/nguoi-dung/{username}", async (string username, UserDto payload, IPortalDataStore store, CancellationToken cancellationToken) =>
 {
-    var commentsJson = await File.ReadAllTextAsync(commentsPath);
-    var commentsList = JsonSerializer.Deserialize<List<Comment>>(commentsJson) ?? new List<Comment>();
-    
-    var comment = commentsList.FirstOrDefault(c => c.Id == id);
-    if (comment != null) {
-        comment.Likes += 1;
-        await File.WriteAllTextAsync(commentsPath, JsonSerializer.Serialize(commentsList, new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
-        await context.Response.WriteAsJsonAsync(new { success = true, likes = comment.Likes });
-    } else {
-        context.Response.StatusCode = 404;
-        await context.Response.WriteAsJsonAsync(new { success = false, message = "Không tìm thấy bình luận." });
-    }
-});
+    var result = await store.AdminSaveUserAsync(username, payload, cancellationToken);
+    return result.Success
+        ? (IResult)Results.Json(new { success = true, message = result.Message })
+        : Results.NotFound(new { success = false, message = result.Message });
+}).RequireAuthorization("AdminOnly");
 
-app.MapPost("/api/binh-luan/{id}/dislike", async (HttpContext context, string id) =>
+app.MapDelete("/api/admin/nguoi-dung/{username}", async (string username, IPortalDataStore store, CancellationToken cancellationToken) =>
 {
-    var commentsJson = await File.ReadAllTextAsync(commentsPath);
-    var commentsList = JsonSerializer.Deserialize<List<Comment>>(commentsJson) ?? new List<Comment>();
-    
-    var comment = commentsList.FirstOrDefault(c => c.Id == id);
-    if (comment != null) {
-        comment.Dislikes += 1;
-        await File.WriteAllTextAsync(commentsPath, JsonSerializer.Serialize(commentsList, new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
-        await context.Response.WriteAsJsonAsync(new { success = true, dislikes = comment.Dislikes });
-    } else {
-        context.Response.StatusCode = 404;
-        await context.Response.WriteAsJsonAsync(new { success = false, message = "Không tìm thấy bình luận." });
-    }
-});
-
-
-// --- API QUẢN TRỊ VIÊN ---
-app.MapPost("/api/admin/nguoi-dung", async (HttpContext context) =>
-{
-    using var reader = new StreamReader(context.Request.Body);
-    var body = await reader.ReadToEndAsync();
-    var newUser = JsonSerializer.Deserialize<User>(body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-    
-    var usersJson = await File.ReadAllTextAsync(usersPath);
-    var usersList = JsonSerializer.Deserialize<List<User>>(usersJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<User>();
-    
-    if (usersList.Any(u => string.Equals(u.Username, newUser.Username, StringComparison.OrdinalIgnoreCase))) {
-        context.Response.StatusCode = 400;
-        await context.Response.WriteAsJsonAsync(new { success = false, message = "Tên đăng nhập đã tồn tại." });
-        return;
-    }
-    
-    newUser.Id = Guid.NewGuid().ToString();
-    newUser.RegisterDate = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-    if (string.IsNullOrEmpty(newUser.Password)) newUser.Password = "123456"; // mật khẩu mặc định
-    usersList.Add(newUser);
-    
-    var jsonOptions = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-    await File.WriteAllTextAsync(usersPath, JsonSerializer.Serialize(usersList, jsonOptions));
-    await context.Response.WriteAsJsonAsync(new { success = true, message = "Thêm tài khoản thành công." });
-});
-
-app.MapPut("/api/admin/nguoi-dung/{username}", async (HttpContext context, string username) =>
-{
-    using var reader = new StreamReader(context.Request.Body);
-    var body = await reader.ReadToEndAsync();
-    var updateReq = JsonSerializer.Deserialize<User>(body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-    
-    var usersJson = await File.ReadAllTextAsync(usersPath);
-    var usersList = JsonSerializer.Deserialize<List<User>>(usersJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<User>();
-    
-    var userIndex = usersList.FindIndex(u => string.Equals(u.Username, username, StringComparison.OrdinalIgnoreCase));
-    if (userIndex == -1) {
-        context.Response.StatusCode = 404;
-        await context.Response.WriteAsJsonAsync(new { success = false, message = "Không tìm thấy người dùng." });
-        return;
-    }
-    
-    var user = usersList[userIndex];
-    if (!string.IsNullOrEmpty(updateReq.Password)) user.Password = updateReq.Password;
-    if (updateReq.FullName != null) user.FullName = updateReq.FullName;
-    if (updateReq.Email != null) user.Email = updateReq.Email;
-    user.IsActive = updateReq.IsActive; // Luôn cập nhật trạng thái hoạt động dựa trên yêu cầu của admin
-    
-    usersList[userIndex] = user;
-    
-    var jsonOptions = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-    await File.WriteAllTextAsync(usersPath, JsonSerializer.Serialize(usersList, jsonOptions));
-    await context.Response.WriteAsJsonAsync(new { success = true, message = "Cập nhật tài khoản thành công." });
-});
-
-app.MapDelete("/api/admin/nguoi-dung/{username}", async (HttpContext context, string username) =>
-{
-    var usersJson = await File.ReadAllTextAsync(usersPath);
-    var usersList = JsonSerializer.Deserialize<List<User>>(usersJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<User>();
-    
-    var userIndex = usersList.FindIndex(u => string.Equals(u.Username, username, StringComparison.OrdinalIgnoreCase));
-    if (userIndex == -1) {
-        context.Response.StatusCode = 404;
-        await context.Response.WriteAsJsonAsync(new { success = false, message = "Không tìm thấy người dùng." });
-        return;
-    }
-    
-    // Ngăn việc xóa tài khoản admin gốc
-    if (username.ToLower() == "admin") {
-        context.Response.StatusCode = 403;
-        await context.Response.WriteAsJsonAsync(new { success = false, message = "Không thể xóa tài khoản admin gốc." });
-        return;
-    }
-    
-    usersList.RemoveAt(userIndex);
-    
-    var jsonOptions = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-    await File.WriteAllTextAsync(usersPath, JsonSerializer.Serialize(usersList, jsonOptions));
-    await context.Response.WriteAsJsonAsync(new { success = true, message = "Đã xóa tài khoản." });
-});
+    var result = await store.AdminDeleteUserAsync(username, cancellationToken);
+    return result.Success
+        ? (IResult)Results.Json(new { success = true, message = result.Message })
+        : Results.Json(new { success = false, message = result.Message }, statusCode: username.Equals("admin", StringComparison.OrdinalIgnoreCase) ? StatusCodes.Status403Forbidden : StatusCodes.Status404NotFound);
+}).RequireAuthorization("AdminOnly");
 
 app.Run();
 
-public class User {
-    public string Id { get; set; }
-    public string Username { get; set; }
-    public string Password { get; set; }
-    public string RegisterDate { get; set; }
-    public string Email { get; set; }
-    public string DateOfBirth { get; set; }
-    public string AvatarUrl { get; set; }
-    public string FullName { get; set; }
-    public bool IsActive { get; set; } = true;
+static void UseFrontendStaticFiles(WebApplication app, string frontendRoot)
+{
+    var publicFolders = new[] { "admin", "auth", "profile", "shared", "user" };
+
+    foreach (var folder in publicFolders)
+    {
+        var folderPath = Path.Combine(frontendRoot, folder);
+        if (!Directory.Exists(folderPath))
+        {
+            continue;
+        }
+
+        // Chỉ public các thư mục frontend cần thiết, tránh vô tình lộ cấu hình backend/database.
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            FileProvider = new PhysicalFileProvider(folderPath),
+            RequestPath = $"/{folder}"
+        });
+    }
 }
 
-public class Comment {
-    public string Id { get; set; }
-    public string PageId { get; set; }
-    public string Username { get; set; }
-    public string Content { get; set; }
-    public int Likes { get; set; }
-    public int Dislikes { get; set; }
-    public string AvatarUrl { get; set; }
-    public string CreatedAt { get; set; }
+static void MapFrontendRoutes(WebApplication app, string frontendRoot)
+{
+    var routes = GetFrontendRoutes();
+
+    foreach (var route in routes)
+    {
+        var localRoute = route;
+        app.MapGet(localRoute.Url, () => ServeFrontendPage(frontendRoot, localRoute.FilePath));
+    }
+
+    app.MapGet("/api/site-map", () => Results.Json(routes.Select(route => new
+    {
+        route.Url,
+        route.FilePath,
+        route.Area,
+        route.Title
+    })));
 }
 
+static IResult ServeFrontendPage(string frontendRoot, string relativePath)
+{
+    var fullPath = Path.GetFullPath(Path.Combine(frontendRoot, relativePath));
+    var rootPath = Path.GetFullPath(frontendRoot);
+
+    if (!fullPath.StartsWith(rootPath, StringComparison.OrdinalIgnoreCase) || !System.IO.File.Exists(fullPath))
+    {
+        return Results.NotFound(new { success = false, message = "Không tìm thấy trang frontend." });
+    }
+
+    return Results.File(fullPath, "text/html; charset=utf-8");
+}
+
+static IReadOnlyList<FrontendRouteInfo> GetFrontendRoutes()
+{
+    return
+    [
+        new("/", "user/trang-chu/trang-chu.html", "user", "Trang chủ"),
+        new("/trang-chu", "user/trang-chu/trang-chu.html", "user", "Trang chủ"),
+
+        new("/admin", "admin/quan-tri.html", "admin", "Quản trị"),
+        new("/admin/quan-tri", "admin/quan-tri.html", "admin", "Quản trị"),
+        new("/quan-tri", "admin/quan-tri.html", "admin", "Quản trị"),
+
+        new("/auth", "auth/xac-thuc.html", "auth", "Xác thực"),
+        new("/dang-nhap", "auth/xac-thuc.html", "auth", "Đăng nhập"),
+        new("/dang-ky", "auth/xac-thuc.html", "auth", "Đăng ký"),
+
+        new("/profile", "profile/ho-so.html", "profile", "Hồ sơ cá nhân"),
+        new("/ho-so", "profile/ho-so.html", "profile", "Hồ sơ cá nhân"),
+
+        new("/gioi-thieu/chuc-nang-nhiem-vu", "user/gioi-thieu/chuc-nang-nhiem-vu.html", "user", "Chức năng, nhiệm vụ"),
+        new("/gioi-thieu/dau-moi-ho-tro", "user/gioi-thieu/dau-moi-ho-tro.html", "user", "Đầu mối hỗ trợ"),
+        new("/gioi-thieu/lich-su-hinh-thanh", "user/gioi-thieu/lich-su-hinh-thanh.html", "user", "Lịch sử hình thành"),
+        new("/gioi-thieu/san-pham-tieu-bieu", "user/gioi-thieu/san-pham-tieu-bieu.html", "user", "Sản phẩm tiêu biểu"),
+        new("/gioi-thieu/so-do-to-chuc", "user/gioi-thieu/so-do-to-chuc.html", "user", "Sơ đồ tổ chức"),
+        new("/gioi-thieu/co-cau-to-chuc", "user/gioi-thieu/co-cau-to-chuc.html", "user", "Cơ cấu tổ chức"),
+        new("/co-cau-to-chuc", "user/gioi-thieu/co-cau-to-chuc.html", "user", "Cơ cấu tổ chức"),
+
+        new("/tin-tuc/cap-nhat-bao-lu", "user/tin-tuc/cap-nhat-bao-lu.html", "user", "Cập nhật bão lũ"),
+        new("/tin-tuc/cds-doi-moi-sang-tao", "user/tin-tuc/cds-doi-moi-sang-tao.html", "user", "CĐS - Đổi mới sáng tạo"),
+        new("/tin-tuc/thong-bao", "user/tin-tuc/thong-bao.html", "user", "Thông báo"),
+        new("/tin-tuc/tin-hoat-dong", "user/tin-tuc/tin-hoat-dong.html", "user", "Tin hoạt động"),
+
+        new("/chuyen-muc-khac/chi-dao-dieu-hanh", "user/chuyen-muc-khac/chi-dao-dieu-hanh.html", "user", "Chỉ đạo điều hành"),
+        new("/chuyen-muc-khac/cong-tac-xay-dung-dang", "user/chuyen-muc-khac/cong-tac-xay-dung-dang.html", "user", "Công tác xây dựng Đảng"),
+        new("/chuyen-muc-khac/tieu-chuan-chat-luong", "user/chuyen-muc-khac/tieu-chuan-chat-luong.html", "user", "Tiêu chuẩn - Chất lượng"),
+        new("/chuyen-muc-khac/trao-doi-kinh-nghiem", "user/chuyen-muc-khac/trao-doi-kinh-nghiem.html", "user", "Trao đổi kinh nghiệm"),
+        new("/chuyen-muc-khac/tuong-tac-cong-dan", "user/chuyen-muc-khac/tuong-tac-cong-dan.html", "user", "Tương tác công dân"),
+
+        new("/giai-phap/giai-phap-an-toan-mang", "user/giai-phap/giai-phap-an-toan-mang.html", "user", "Giải pháp An toàn mạng"),
+        new("/giai-phap/giai-phap-an-toan-thong-tin", "user/giai-phap/giai-phap-an-toan-thong-tin.html", "user", "Giải pháp An toàn thông tin")
+    ];
+}
+
+static IReadOnlyList<NewsCategoryInfo> GetNewsCategories()
+{
+    return
+    [
+        new() { Slug = "cap-nhat-bao-lu", Title = "Cập nhật bão lũ" },
+        new() { Slug = "cds-doi-moi-sang-tao", Title = "CĐS - Đổi mới sáng tạo" },
+        new() { Slug = "chi-dao-dieu-hanh", Title = "Chỉ đạo điều hành" },
+        new() { Slug = "cong-tac-xay-dung-dang", Title = "Công tác xây dựng Đảng" },
+        new() { Slug = "giai-phap-an-toan-mang", Title = "Giải pháp An toàn mạng" },
+        new() { Slug = "giai-phap-an-toan-thong-tin", Title = "Giải pháp An toàn thông tin" },
+        new() { Slug = "thong-bao", Title = "Thông báo" },
+        new() { Slug = "tieu-chuan-chat-luong", Title = "Tiêu chuẩn - Chất lượng" },
+        new() { Slug = "tin-hoat-dong", Title = "Tin hoạt động" },
+        new() { Slug = "trao-doi-kinh-nghiem", Title = "Trao đổi kinh nghiệm" },
+        new() { Slug = "tuong-tac-cong-dan", Title = "Tương tác công dân" }
+    ];
+}
+
+public sealed record FrontendRouteInfo(string Url, string FilePath, string Area, string Title);

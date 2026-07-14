@@ -1,5 +1,24 @@
 const API_BASE = 'http://localhost:5000/api';
 
+function getAuthHeaders(extraHeaders = {}) {
+    const token = localStorage.getItem('accessToken');
+    const tokenType = localStorage.getItem('tokenType') || 'Bearer';
+    return token
+        ? { ...extraHeaders, Authorization: `${tokenType} ${token}` }
+        : extraHeaders;
+}
+
+async function apiFetch(url, options = {}) {
+    const headers = getAuthHeaders(options.headers || {});
+    const response = await fetch(url, { ...options, headers });
+
+    if (response.status === 401 || response.status === 403) {
+        showAlert('Phiên đăng nhập không có quyền quản trị hoặc đã hết hạn. Vui lòng đăng nhập lại bằng tài khoản admin.', false);
+    }
+
+    return response;
+}
+
 // Hiển thị thông báo
 function showAlert(message, isSuccess = true) {
     const alertBox = document.getElementById('alert-box');
@@ -8,6 +27,30 @@ function showAlert(message, isSuccess = true) {
     setTimeout(() => {
         alertBox.className = 'alert';
     }, 3000);
+}
+
+async function ensureAdminSession() {
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+        showAlert('Vui lòng đăng nhập bằng tài khoản admin trước khi quản trị hệ thống.', false);
+        return false;
+    }
+
+    try {
+        const response = await apiFetch(`${API_BASE}/auth/me`);
+        if (!response.ok) return false;
+
+        const profile = await response.json();
+        if (profile.role !== 'Admin') {
+            showAlert('Tài khoản hiện tại không có quyền quản trị.', false);
+            return false;
+        }
+
+        return true;
+    } catch (err) {
+        showAlert('Không kiểm tra được phiên quản trị. Vui lòng thử lại.', false);
+        return false;
+    }
 }
 
 // Xử lý đóng mở menu Giới thiệu
@@ -43,7 +86,7 @@ let allUsers = [];
 
 async function loadUsers() {
     try {
-        const res = await fetch(`${API_BASE}/nguoi-dung`);
+        const res = await apiFetch(`${API_BASE}/nguoi-dung`);
         allUsers = await res.json();
         renderUsers(allUsers);
     } catch (err) {
@@ -119,7 +162,7 @@ document.getElementById('searchAccountInput')?.addEventListener('input', (e) => 
 // Load cấu hình hiện tại
 async function loadConfig() {
     try {
-        const response = await fetch(`${API_BASE}/cau-hinh`);
+        const response = await apiFetch(`${API_BASE}/cau-hinh`);
         const config = await response.json();
         if(config) {
             const fields = [
@@ -203,7 +246,7 @@ document.getElementById('config-form').addEventListener('submit', async (e) => {
     config.techSolutionsItems = techSolutionsItems;
 
     try {
-        const response = await fetch(`${API_BASE}/cau-hinh`, {
+        const response = await apiFetch(`${API_BASE}/cau-hinh`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(config)
@@ -218,6 +261,7 @@ document.getElementById('config-form').addEventListener('submit', async (e) => {
 
 // Khởi tạo
 document.addEventListener('DOMContentLoaded', () => {
+    ensureAdminSession();
     window.editors = {};
     const quillOptions = {
         theme: 'snow',
@@ -262,7 +306,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Load dữ liệu trang giới thiệu
 async function loadAbout() {
     try {
-        const response = await fetch(`${API_BASE}/chuc-nang-nhiem-vu`);
+        const response = await apiFetch(`${API_BASE}/chuc-nang-nhiem-vu`);
         if(response.ok) {
             const about = await response.json();
             if(about) {
@@ -284,7 +328,7 @@ document.getElementById('about-form').addEventListener('submit', async (e) => {
     };
 
     try {
-        const response = await fetch(`${API_BASE}/chuc-nang-nhiem-vu`, {
+        const response = await apiFetch(`${API_BASE}/chuc-nang-nhiem-vu`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(aboutData)
@@ -300,7 +344,7 @@ document.getElementById('about-form').addEventListener('submit', async (e) => {
 // Load dữ liệu trang hỗ trợ
 async function loadSupport() {
     try {
-        const response = await fetch(`${API_BASE}/dau-moi-ho-tro`);
+        const response = await apiFetch(`${API_BASE}/dau-moi-ho-tro`);
         if(response.ok) {
             const support = await response.json();
             if(support) {
@@ -322,7 +366,7 @@ document.getElementById('support-form').addEventListener('submit', async (e) => 
     };
 
     try {
-        const response = await fetch(`${API_BASE}/dau-moi-ho-tro`, {
+        const response = await apiFetch(`${API_BASE}/dau-moi-ho-tro`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(supportData)
@@ -338,7 +382,7 @@ document.getElementById('support-form').addEventListener('submit', async (e) => 
 // Load dữ liệu trang lịch sử
 async function loadHistory() {
     try {
-        const response = await fetch(`${API_BASE}/lich-su-hinh-thanh`);
+        const response = await apiFetch(`${API_BASE}/lich-su-hinh-thanh`);
         if(response.ok) {
             const history = await response.json();
             if(history) {
@@ -360,7 +404,7 @@ document.getElementById('history-form').addEventListener('submit', async (e) => 
     };
 
     try {
-        const response = await fetch(`${API_BASE}/lich-su-hinh-thanh`, {
+        const response = await apiFetch(`${API_BASE}/lich-su-hinh-thanh`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(historyData)
@@ -376,7 +420,7 @@ document.getElementById('history-form').addEventListener('submit', async (e) => 
 // Load dữ liệu trang sản phẩm
 async function loadProducts() {
     try {
-        const response = await fetch(`${API_BASE}/san-pham-tieu-bieu`);
+        const response = await apiFetch(`${API_BASE}/san-pham-tieu-bieu`);
         if(response.ok) {
             const products = await response.json();
             if(products) {
@@ -398,7 +442,7 @@ document.getElementById('products-form').addEventListener('submit', async (e) =>
     };
 
     try {
-        const response = await fetch(`${API_BASE}/san-pham-tieu-bieu`, {
+        const response = await apiFetch(`${API_BASE}/san-pham-tieu-bieu`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(productsData)
@@ -414,7 +458,7 @@ document.getElementById('products-form').addEventListener('submit', async (e) =>
 // Load dữ liệu trang sơ đồ tổ chức
 async function loadOrgChart() {
     try {
-        const response = await fetch(`${API_BASE}/so-do-to-chuc`);
+        const response = await apiFetch(`${API_BASE}/so-do-to-chuc`);
         if(response.ok) {
             const orgchart = await response.json();
             if(orgchart) {
@@ -436,7 +480,7 @@ document.getElementById('orgchart-form').addEventListener('submit', async (e) =>
     };
 
     try {
-        const response = await fetch(`${API_BASE}/so-do-to-chuc`, {
+        const response = await apiFetch(`${API_BASE}/so-do-to-chuc`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(orgchartData)
@@ -452,7 +496,7 @@ document.getElementById('orgchart-form').addEventListener('submit', async (e) =>
 // Load dữ liệu trang cơ cấu tổ chức
 async function loadStruct() {
     try {
-        const response = await fetch(`${API_BASE}/co-cau-to-chuc`);
+        const response = await apiFetch(`${API_BASE}/co-cau-to-chuc`);
         if(response.ok) {
             const structData = await response.json();
             if(structData) {
@@ -474,7 +518,7 @@ document.getElementById('struct-form').addEventListener('submit', async (e) => {
     };
 
     try {
-        const response = await fetch(`${API_BASE}/co-cau-to-chuc`, {
+        const response = await apiFetch(`${API_BASE}/co-cau-to-chuc`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(structDataPayload)
@@ -512,7 +556,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function loadNews(categoryId) {
     currentNewsCategory = categoryId;
     try {
-        const response = await fetch(`${API_BASE}/${categoryId}`);
+        const response = await apiFetch(`${API_BASE}/${categoryId}`);
         if(response.ok) {
             newsDataGlobal = await response.json();
             if (!newsDataGlobal.posts) newsDataGlobal.posts = [];
@@ -598,7 +642,7 @@ document.getElementById('newsPostForm').addEventListener('submit', async (e) => 
         const formData = new FormData();
         formData.append('file', fileInput.files[0]);
         try {
-            const upRes = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
+            const upRes = await apiFetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
             const upData = await upRes.json();
             if (upData.url) {
                 imageUrl = upData.url;
@@ -643,7 +687,7 @@ document.getElementById('newsPostForm').addEventListener('submit', async (e) => 
 async function saveNewsToServer(successMessage) {
     if (!currentNewsCategory) return;
     try {
-        const response = await fetch(`${API_BASE}/${currentNewsCategory}`, {
+        const response = await apiFetch(`${API_BASE}/${currentNewsCategory}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(newsDataGlobal)
@@ -712,7 +756,7 @@ async function deleteUser(username) {
     
     if (confirm(`Bạn có chắc chắn muốn xóa tài khoản "${username}" không?`)) {
         try {
-            const res = await fetch(`${API_BASE}/admin/nguoi-dung/${username}`, {
+            const res = await apiFetch(`${API_BASE}/admin/nguoi-dung/${username}`, {
                 method: 'DELETE'
             });
             const data = await res.json();
@@ -757,7 +801,7 @@ document.getElementById('userForm')?.addEventListener('submit', async (e) => {
             ? `${API_BASE}/admin/nguoi-dung/${username}` 
             : `${API_BASE}/admin/nguoi-dung`;
             
-        const res = await fetch(url, {
+        const res = await apiFetch(url, {
             method: isEditingUser ? 'PUT' : 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)

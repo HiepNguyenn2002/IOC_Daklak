@@ -295,7 +295,7 @@ async function loadConfig() {
                     dynamicStyle.id = 'dynamic-ticker-style';
                     document.head.appendChild(dynamicStyle);
                 }
-                dynamicStyle.innerHTML = \`.ticker-label::after { border-left-color: \${config.tickerLabelColor} !important; }\`;
+                dynamicStyle.innerHTML = `.ticker-label::after { border-left-color: ${config.tickerLabelColor} !important; }`;
             }
         }
 
@@ -389,6 +389,8 @@ async function loadDynamicNews() {
 document.addEventListener('DOMContentLoaded', () => {
     loadConfig();
     loadDynamicNews();
+    loadHomePageGovData();
+    setupSearchForm();
     loadAboutContent();
     loadSupportContent();
     loadHistoryContent();
@@ -397,6 +399,176 @@ document.addEventListener('DOMContentLoaded', () => {
     loadStructContent();
     loadCategoryNews();
 });
+
+async function loadHomePageGovData() {
+    try {
+        const response = await fetch(`${API_BASE}/trang-chu`);
+        if (!response.ok) return;
+
+        const homeData = await response.json();
+        renderAnnouncements(homeData.announcements || []);
+        renderDocumentArea(homeData.documentTypes || [], homeData.documents || []);
+    } catch (e) {
+        console.warn('Không tải được dữ liệu trang chủ từ backend.', e);
+    }
+}
+
+function renderAnnouncements(announcements) {
+    const list = document.querySelector('.announcement-list');
+    if (!list || announcements.length === 0) return;
+
+    list.innerHTML = announcements.map(item => {
+        const url = item.url || '#';
+        return `
+            <li>
+                <a href="${escapeAttribute(url)}" title="${escapeAttribute(item.title || '')}">
+                    ${escapeHtml(item.title || '')}
+                </a>
+            </li>
+        `;
+    }).join('');
+}
+
+function renderDocumentArea(types, documents) {
+    const tabs = document.querySelector('.document-tabs');
+    const firstTable = document.getElementById('docTab0');
+    if (!tabs || !firstTable || types.length === 0) return;
+
+    tabs.innerHTML = types.map((type, index) => `
+        <button class="doc-tab ${index === 0 ? 'active' : ''}" data-tab="${index}" data-type="${escapeAttribute(type.code || '')}">
+            ${escapeHtml(type.name || '')}
+        </button>
+    `).join('');
+
+    const oldTables = document.querySelectorAll('.documents-table');
+    oldTables.forEach((table, index) => {
+        if (index > 0) table.remove();
+    });
+
+    firstTable.id = 'docTab0';
+    firstTable.classList.remove('hidden');
+    renderDocumentTable(firstTable, documents.filter(doc => doc.typeCode === types[0].code));
+
+    types.slice(1).forEach((type, index) => {
+        const table = firstTable.cloneNode(false);
+        table.id = `docTab${index + 1}`;
+        table.classList.add('hidden');
+        renderDocumentTable(table, documents.filter(doc => doc.typeCode === type.code));
+        firstTable.parentElement.appendChild(table);
+    });
+
+    document.querySelectorAll('.doc-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.doc-tab').forEach(item => item.classList.remove('active'));
+            tab.classList.add('active');
+
+            document.querySelectorAll('.documents-table').forEach(table => table.classList.add('hidden'));
+            const targetTable = document.getElementById(`docTab${tab.dataset.tab}`);
+            if (targetTable) targetTable.classList.remove('hidden');
+        });
+    });
+}
+
+function renderDocumentTable(table, documents) {
+    const rows = documents.length === 0
+        ? '<div class="table-row"><div class="table-col-content"><p>Chưa có văn bản trong nhóm này.</p></div></div>'
+        : documents.map(doc => `
+            <div class="table-row">
+                <div class="table-col-id">
+                    <p class="doc-number">${escapeHtml(doc.documentNumber || '')}</p>
+                    <p class="doc-date">${formatDateVi(doc.publishedAt)}</p>
+                </div>
+                <div class="table-col-content">
+                    <p>${escapeHtml(doc.title || '')}</p>
+                    <a href="${escapeAttribute(resolveBackendUrl(doc.fileUrl || '#'))}" class="download-link" target="_blank">
+                        <i class="fa-solid fa-arrow-down"></i> Tải tài liệu
+                    </a>
+                </div>
+            </div>
+        `).join('');
+
+    table.innerHTML = `
+        <div class="table-header">
+            <div class="table-col-id">SỐ KÝ HIỆU/NGÀY BAN HÀNH</div>
+            <div class="table-col-content">NỘI DUNG TRÍCH YẾU</div>
+        </div>
+        ${rows}
+    `;
+}
+
+function setupSearchForm() {
+    const form = searchForm?.querySelector('form');
+    const input = form?.querySelector('input');
+    if (!form || !input) return;
+
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const keyword = input.value.trim();
+        if (!keyword) return;
+
+        const panel = ensureSearchResultPanel();
+        panel.innerHTML = '<div style="padding: 12px 14px; color: #64748b;">Đang tìm kiếm...</div>';
+
+        try {
+            const response = await fetch(`${API_BASE}/tim-kiem?q=${encodeURIComponent(keyword)}&take=8`);
+            const payload = await response.json();
+            const results = payload.results || [];
+
+            panel.innerHTML = results.length === 0
+                ? '<div style="padding: 12px 14px; color: #64748b;">Không tìm thấy kết quả phù hợp.</div>'
+                : results.map(item => `
+                    <a href="${escapeAttribute(resolveFrontendUrl(item.url || '#'))}" style="display: block; padding: 12px 14px; border-bottom: 1px solid #e2e8f0; color: #0f172a; text-decoration: none;">
+                        <strong style="display: block; font-size: 14px; margin-bottom: 4px;">${escapeHtml(item.title || '')}</strong>
+                        <span style="display: block; font-size: 12px; color: #64748b;">${escapeHtml(item.type || '')}</span>
+                    </a>
+                `).join('');
+        } catch (e) {
+            panel.innerHTML = '<div style="padding: 12px 14px; color: #dc2626;">Không kết nối được backend tìm kiếm.</div>';
+        }
+    });
+}
+
+function ensureSearchResultPanel() {
+    let panel = document.getElementById('searchResultPanel');
+    if (panel) return panel;
+
+    panel = document.createElement('div');
+    panel.id = 'searchResultPanel';
+    panel.style.cssText = 'position:absolute;top:52px;right:0;width:min(420px,90vw);max-height:420px;overflow:auto;background:#fff;border:1px solid #dbe3ef;border-radius:8px;box-shadow:0 18px 45px rgba(15,23,42,.18);z-index:9999;';
+    searchForm.appendChild(panel);
+    return panel;
+}
+
+function resolveBackendUrl(url) {
+    if (!url || url === '#') return '#';
+    return url.startsWith('http') ? url : `http://localhost:5000${url}`;
+}
+
+function resolveFrontendUrl(url) {
+    if (!url || url === '#') return '#';
+    if (url.startsWith('http')) return url;
+    return url.startsWith('/') ? `${window.location.origin}${url}` : url;
+}
+
+function formatDateVi(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleDateString('vi-VN');
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+function escapeAttribute(value) {
+    return escapeHtml(value);
+}
 
 async function loadSupportContent() {
     const titleEl = document.getElementById('dynamic-support-title');
