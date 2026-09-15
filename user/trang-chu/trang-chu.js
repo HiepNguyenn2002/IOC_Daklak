@@ -1,4 +1,4 @@
-﻿// ===== CUá»˜N LĂN Äáº¦U TRANG =====
+// ===== CUá»˜N LĂN Äáº¦U TRANG =====
 const scrollTopBtn = document.getElementById('scrollTopBtn');
 
 window.addEventListener('scroll', () => {
@@ -481,16 +481,15 @@ function renderDocumentTable(table, documents) {
                 <div class="table-col-content">
                     <p>${escapeHtml(doc.title || '')}</p>
                     <a href="${escapeAttribute(resolveBackendUrl(doc.fileUrl || '#'))}" class="download-link" target="_blank">
-                        <i class="fa-solid fa-arrow-down"></i> Táº£i tĂ i liá»‡u
-                    </a>
+                        <i class="fa-solid fa-arrow-down"></i> Tải tài liệu</a>
                 </div>
             </div>
         `).join('');
 
     table.innerHTML = `
         <div class="table-header">
-            <div class="table-col-id">Sá» KĂ HIá»†U/NGĂ€Y BAN HĂ€NH</div>
-            <div class="table-col-content">Ná»˜I DUNG TRĂCH Yáº¾U</div>
+            <div class="table-col-id">SỐ KÝ HIỆU/NGÀY BAN HÀNH</div>
+            <div class="table-col-content">NỘI DUNG TRÍCH YẾU</div>
         </div>
         ${rows}
     `;
