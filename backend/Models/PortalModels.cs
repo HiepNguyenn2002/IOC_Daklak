@@ -33,6 +33,11 @@ public sealed class NewsPostDto
     public string? CreatedAt { get; set; }
 }
 
+public sealed class VoiceRequestDto
+{
+    public string? Text { get; set; }
+}
+
 public sealed class UserDto
 {
     public string? Id { get; set; }

@@ -21,6 +21,7 @@ builder.Logging.AddDebug();
 
 builder.Services.Configure<UploadOptions>(builder.Configuration.GetSection("Upload"));
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
+builder.Services.AddHttpClient();
 
 var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
 var jwtKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey));
@@ -107,6 +108,63 @@ app.MapGet("/api/health", (IConfiguration configuration) =>
         dataProvider = configuration["DataProvider"] ?? "Json",
         checkedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
     });
+});
+
+app.MapPost("/api/voice", async (
+    VoiceRequestDto payload,
+    IConfiguration configuration,
+    IHttpClientFactory httpClientFactory,
+    CancellationToken cancellationToken) =>
+{
+    var text = payload.Text?.Trim();
+    if (string.IsNullOrWhiteSpace(text))
+    {
+        return Results.BadRequest(new { success = false, message = "Nội dung đọc không được để trống." });
+    }
+
+    if (text.Length > 4000)
+    {
+        return Results.BadRequest(new { success = false, message = "Mỗi đoạn đọc tối đa 4.000 ký tự." });
+    }
+
+    var region = configuration["AzureSpeech:Region"]?.Trim();
+    var apiKey = configuration["AzureSpeech:ApiKey"];
+    var voice = configuration["AzureSpeech:Voice"] ?? "vi-VN-HoaiMyNeural";
+    if (string.IsNullOrWhiteSpace(region) || string.IsNullOrWhiteSpace(apiKey))
+    {
+        return Results.Problem("Azure Speech chưa được cấu hình trên backend.", statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
+    var escapedText = System.Security.SecurityElement.Escape(text) ?? string.Empty;
+    var escapedVoice = System.Security.SecurityElement.Escape(voice) ?? "vi-VN-HoaiMyNeural";
+    var ssml = $"<speak version='1.0' xml:lang='vi-VN'><voice name='{escapedVoice}'>{escapedText}</voice></speak>";
+    using var request = new HttpRequestMessage(
+        HttpMethod.Post,
+        $"https://{region}.tts.speech.microsoft.com/cognitiveservices/v1");
+    request.Headers.TryAddWithoutValidation("Ocp-Apim-Subscription-Key", apiKey);
+    request.Headers.TryAddWithoutValidation("X-Microsoft-OutputFormat", "audio-24khz-96kbitrate-mono-mp3");
+    request.Headers.TryAddWithoutValidation("User-Agent", "IOC-Daklak");
+    request.Content = new StringContent(ssml, Encoding.UTF8, "application/ssml+xml");
+
+    try
+    {
+        var client = httpClientFactory.CreateClient();
+        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var azureMessage = await response.Content.ReadAsStringAsync(cancellationToken);
+            app.Logger.LogWarning("Azure Speech trả lỗi {StatusCode}: {Message}", (int)response.StatusCode, azureMessage);
+            return Results.Problem("Azure Speech không thể tạo giọng đọc. Vui lòng kiểm tra voice hoặc quota.", statusCode: StatusCodes.Status502BadGateway);
+        }
+
+        var audio = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+        return Results.File(audio, "audio/mpeg");
+    }
+    catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
+    {
+        app.Logger.LogWarning(exception, "Không thể kết nối Azure Speech.");
+        return Results.Problem("Không thể kết nối dịch vụ Azure Speech.", statusCode: StatusCodes.Status502BadGateway);
+    }
 });
 
 app.MapGet("/api/auth/me", (ClaimsPrincipal user) =>

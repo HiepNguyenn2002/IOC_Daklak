@@ -1,4 +1,4 @@
-// ===== CUá»˜N LĂN Äáº¦U TRANG =====
+// ===== CUỘN LÊN ĐẦU TRANG =====
 const scrollTopBtn = document.getElementById('scrollTopBtn');
 
 window.addEventListener('scroll', () => {
@@ -16,7 +16,7 @@ if (scrollTopBtn) {
     });
 }
 
-// ===== LOGO HEADER Cá» Äá»NH =====
+// ===== LOGO HEADER CỐ ĐỊNH =====
 const header = document.getElementById('header');
 window.addEventListener('scroll', () => {
     if (header) {
@@ -28,7 +28,7 @@ window.addEventListener('scroll', () => {
     }
 }, { passive: true });
 
-// ===== Báº¬T/Táº®T TĂŒM KIáº¾M =====
+// ===== BẬT/TẮT TÌM KIẾM =====
 const searchBtn = document.getElementById('searchBtn');
 const searchForm = document.getElementById('searchForm');
 const closeSearch = document.getElementById('closeSearch');
@@ -41,7 +41,7 @@ if (searchBtn && searchForm) {
         if (input) setTimeout(() => input.focus(), 50);
     });
 
-    // ÄĂ³ng khi click ra ngoĂ i
+    // Đóng khi click ra ngoài
     document.addEventListener('click', (e) => {
         if (searchForm.classList.contains('active')) {
             if (!searchForm.contains(e.target) && !searchBtn.contains(e.target)) {
@@ -57,7 +57,7 @@ if (closeSearch && searchForm) {
     });
 }
 
-// ===== MENU ÄIá»†N THOáº I =====
+// ===== MENU ĐIỆN THOẠI =====
 const mobileMenuBtn = document.getElementById('mobileMenuBtn');
 
 if (mobileMenuBtn) {
@@ -66,18 +66,18 @@ if (mobileMenuBtn) {
     });
 }
 
-// ===== CHUYá»‚N TAB TĂ€I LIá»†U =====
+// ===== CHUYỂN TAB TÀI LIỆU =====
 const docTabs = document.querySelectorAll('.doc-tab');
 
 docTabs.forEach(tab => {
     tab.addEventListener('click', () => {
         const tabIndex = tab.dataset.tab;
 
-        // XĂ³a tráº¡ng thĂ¡i active cá»§a táº¥t cáº£ cĂ¡c tab
+        // Xóa trạng thái active của tất cả các tab
         docTabs.forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
 
-        // Hiá»ƒn thá»‹/áº©n ná»™i dung tab
+        // Hiển thị/ẩn nội dung tab
         document.querySelectorAll('.documents-table').forEach(table => {
             table.classList.add('hidden');
         });
@@ -89,7 +89,7 @@ docTabs.forEach(tab => {
     });
 });
 
-// ===== OBSERVER Äá»‚ CHáº Y ANIMATION KHI CUá»˜N =====
+// ===== OBSERVER ĐỂ CHẠY ANIMATION KHI CUỘN =====
 const observerOptions = {
     threshold: 0.1,
     rootMargin: '0px 0px -50px 0px'
@@ -104,13 +104,13 @@ const observer = new IntersectionObserver((entries) => {
     });
 }, observerOptions);
 
-// Theo dĂµi cĂ¡c pháº§n tá»­ cĂ³ hiá»‡u á»©ng animation
+// Theo dõi các phần tử có hiệu ứng animation
 document.querySelectorAll('.solution-card, .partner-card, .news-card, .sidebar-banner').forEach(el => {
     el.style.animationPlayState = 'paused';
     observer.observe(el);
 });
 
-// Xá»­ lĂ½ Ä‘Ă³ng má»Ÿ Accordion (Sidebar)
+// Xử lý đóng mở Accordion (Sidebar)
 const accordionHeaders = document.querySelectorAll('.accordion-header');
 accordionHeaders.forEach(header => {
     header.addEventListener('click', () => {
@@ -119,7 +119,7 @@ accordionHeaders.forEach(header => {
     });
 });
 
-// ===== TĂCH Há»¢P API (C# BACKEND) =====
+// ===== TÍCH HỢP API (C# BACKEND) =====
 const API_BASE = '/api';
 
 async function loadConfig() {
@@ -362,22 +362,23 @@ async function loadDynamicNews() {
         
         const ul = document.getElementById('dynamic-news-list');
         if (ul && newsList && newsList.length > 0) {
-            // Giá»¯ 3 má»¥c Ä‘áº§u (hoáº·c thay tháº¿ toĂ n bá»™, thĂªm vĂ o Ä‘áº§u danh sĂ¡ch)
+            // Giữ 3 mục đầu (hoặc thay thế toàn bộ, thêm vào đầu danh sách)
             let html = '';
-            // Chá»‰ hiá»ƒn thá»‹ 3 tin má»›i nháº¥t Ä‘á»ƒ giá»¯ nguyĂªn bá»‘ cá»¥c
+            // Chỉ hiển thị 3 tin mới nhất để giữ nguyên bố cục
             const displayList = newsList.slice(0, 3);
             displayList.forEach(item => {
+                const itemUrl = resolveFrontendUrl(item.url || item.linkUrl || '/tin-tuc/tin-hoat-dong');
                 html += `
                     <li>
-                        <a href="#">
+                        <a href="${escapeAttribute(itemUrl)}">
                             <span class="news-list-date">${item.date || ''}</span>
                             <span>${item.title || ''}</span>
                         </a>
                     </li>
                 `;
             });
-            // CĂ³ thá»ƒ thay tháº¿ ná»™i dung (innerHTML) hoáº·c chĂ¨n lĂªn Ä‘áº§u
-            // á» Ä‘Ă¢y thay tháº¿ danh sĂ¡ch hiá»‡n táº¡i báº±ng danh sĂ¡ch Ä‘á»™ng náº¿u cĂ³ tin má»›i
+            // Có thể thay thế nội dung (innerHTML) hoặc chèn lên đầu
+            // Ở đây thay thế danh sách hiện tại bằng danh sách động nếu có tin mới
             ul.innerHTML = html;
         }
     } catch (e) {
@@ -385,8 +386,49 @@ async function loadDynamicNews() {
     }
 }
 
-// Khá»Ÿi táº¡o khi táº£i trang
+// Khởi tạo khi tải trang
+function setupHomeNewsLinks() {
+    const newsSection = document.getElementById('news-section');
+    if (!newsSection) return;
+
+    const categoryUrls = [
+        '/tin-tuc/tin-hoat-dong',
+        '/chuyen-muc-khac/tuong-tac-cong-dan',
+        '/tin-tuc/cds-doi-moi-sang-tao',
+        '/giai-phap/giai-phap-an-toan-thong-tin'
+    ];
+
+    newsSection.querySelectorAll('.news-column').forEach((column, index) => {
+        const categoryUrl = categoryUrls[index];
+        if (!categoryUrl) return;
+
+        column.querySelectorAll('.news-card a, .news-list a, .show-more-link').forEach(link => {
+            if (!link.getAttribute('href') || link.getAttribute('href') === '#') {
+                link.href = categoryUrl;
+            }
+        });
+
+        const featuredCard = column.querySelector('.news-card.featured');
+        if (!featuredCard) return;
+
+        featuredCard.classList.add('is-clickable');
+        featuredCard.tabIndex = 0;
+        featuredCard.setAttribute('role', 'link');
+        featuredCard.setAttribute('aria-label', 'Xem chi tiết tin nổi bật');
+
+        const openCategory = event => {
+            if (event.type === 'keydown' && event.key !== 'Enter' && event.key !== ' ') return;
+            if (event.target.closest('a')) return;
+            if (event.type === 'keydown') event.preventDefault();
+            window.location.href = categoryUrl;
+        };
+        featuredCard.addEventListener('click', openCategory);
+        featuredCard.addEventListener('keydown', openCategory);
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    setupHomeNewsLinks();
     loadConfig();
     loadDynamicNews();
     loadHomePageGovData();
@@ -409,7 +451,7 @@ async function loadHomePageGovData() {
         renderAnnouncements(homeData.announcements || []);
         renderDocumentArea(homeData.documentTypes || [], homeData.documents || []);
     } catch (e) {
-        console.warn('KhĂ´ng táº£i Ä‘Æ°á»£c dá»¯ liá»‡u trang chá»§ tá»« backend.', e);
+        console.warn('Không tải được dữ liệu trang chủ từ backend.', e);
     }
 }
 
@@ -471,7 +513,7 @@ function renderDocumentArea(types, documents) {
 
 function renderDocumentTable(table, documents) {
     const rows = documents.length === 0
-        ? '<div class="table-row"><div class="table-col-content"><p>ChÆ°a cĂ³ vÄƒn báº£n trong nhĂ³m nĂ y.</p></div></div>'
+        ? '<div class="table-row"><div class="table-col-content"><p>Chưa có văn bản trong nhóm này.</p></div></div>'
         : documents.map(doc => `
             <div class="table-row">
                 <div class="table-col-id">
@@ -506,7 +548,7 @@ function setupSearchForm() {
         if (!keyword) return;
 
         const panel = ensureSearchResultPanel();
-        panel.innerHTML = '<div style="padding: 12px 14px; color: #64748b;">Äang tĂ¬m kiáº¿m...</div>';
+        panel.innerHTML = '<div style="padding: 12px 14px; color: #64748b;">Đang tìm kiếm...</div>';
 
         try {
             const response = await fetch(`${API_BASE}/tim-kiem?q=${encodeURIComponent(keyword)}&take=8`);
@@ -514,7 +556,7 @@ function setupSearchForm() {
             const results = payload.results || [];
 
             panel.innerHTML = results.length === 0
-                ? '<div style="padding: 12px 14px; color: #64748b;">KhĂ´ng tĂ¬m tháº¥y káº¿t quáº£ phĂ¹ há»£p.</div>'
+                ? '<div style="padding: 12px 14px; color: #64748b;">Không tìm thấy kết quả phù hợp.</div>'
                 : results.map(item => `
                     <a href="${escapeAttribute(resolveFrontendUrl(item.url || '#'))}" style="display: block; padding: 12px 14px; border-bottom: 1px solid #e2e8f0; color: #0f172a; text-decoration: none;">
                         <strong style="display: block; font-size: 14px; margin-bottom: 4px;">${escapeHtml(item.title || '')}</strong>
@@ -522,7 +564,7 @@ function setupSearchForm() {
                     </a>
                 `).join('');
         } catch (e) {
-            panel.innerHTML = '<div style="padding: 12px 14px; color: #dc2626;">KhĂ´ng káº¿t ná»‘i Ä‘Æ°á»£c backend tĂ¬m kiáº¿m.</div>';
+            panel.innerHTML = '<div style="padding: 12px 14px; color: #dc2626;">Không kết nối được backend tìm kiếm.</div>';
         }
     });
 }
@@ -573,7 +615,7 @@ async function loadSupportContent() {
     const titleEl = document.getElementById('dynamic-support-title');
     const contentEl = document.getElementById('dynamic-support-content');
     
-    // Chá»‰ táº£i náº¿u Ä‘ang á»Ÿ trang Há»— trá»£
+    // Chỉ tải nếu đang ở trang Hỗ trợ
     if (!titleEl && !contentEl) return;
 
     try {
@@ -585,8 +627,8 @@ async function loadSupportContent() {
         if (contentEl && support.content) contentEl.innerHTML = support.content;
     } catch (e) {
         console.warn('Backend C# is not running. Using default static support content.');
-        if (titleEl) titleEl.innerText = "Äáº§u má»‘i há»— trá»£ trá»±c tuyáº¿n qua Ä‘iá»‡n thoáº¡i";
-        if (contentEl) contentEl.innerHTML = "<p>Lá»—i káº¿t ná»‘i tá»›i Server. Vui lĂ²ng báº­t Backend.</p>";
+        if (titleEl) titleEl.innerText = "Đầu mối hỗ trợ trực tuyến qua điện thoại";
+        if (contentEl) contentEl.innerHTML = "<p>Lỗi kết nối tới Server. Vui lòng bật Backend.</p>";
     }
 }
 
@@ -594,7 +636,7 @@ async function loadHistoryContent() {
     const titleEl = document.getElementById('dynamic-history-title');
     const contentEl = document.getElementById('dynamic-history-content');
     
-    // Chá»‰ táº£i náº¿u Ä‘ang á»Ÿ trang Lá»‹ch sá»­
+    // Chỉ tải nếu đang ở trang Lịch sử
     if (!titleEl && !contentEl) return;
 
     try {
@@ -606,8 +648,8 @@ async function loadHistoryContent() {
         if (contentEl && history.content) contentEl.innerHTML = history.content;
     } catch (e) {
         console.warn('Backend C# is not running. Using default static history content.');
-        if (titleEl) titleEl.innerText = "Lá»‹ch sá»­ hĂ¬nh thĂ nh";
-        if (contentEl) contentEl.innerHTML = "<p>Lá»—i káº¿t ná»‘i tá»›i Server. Vui lĂ²ng báº­t Backend.</p>";
+        if (titleEl) titleEl.innerText = "Lịch sử hình thành";
+        if (contentEl) contentEl.innerHTML = "<p>Lỗi kết nối tới Server. Vui lòng bật Backend.</p>";
     }
 }
 
@@ -615,7 +657,7 @@ async function loadAboutContent() {
     const titleEl = document.getElementById('dynamic-about-title');
     const contentEl = document.getElementById('dynamic-about-content');
     
-    // Chá»‰ táº£i náº¿u Ä‘ang á»Ÿ trang Giá»›i thiá»‡u
+    // Chỉ tải nếu đang ở trang Giới thiệu
     if (!titleEl && !contentEl) return;
 
     try {
@@ -627,8 +669,8 @@ async function loadAboutContent() {
         if (contentEl && about.content) contentEl.innerHTML = about.content;
     } catch (e) {
         console.warn('Backend C# is not running. Using default static about content.');
-        if (titleEl) titleEl.innerText = "Chá»©c nÄƒng, nhiá»‡m vá»¥";
-        if (contentEl) contentEl.innerHTML = "<p>Lá»—i káº¿t ná»‘i tá»›i Server. Vui lĂ²ng báº­t Backend.</p>";
+        if (titleEl) titleEl.innerText = "Chức năng, nhiệm vụ";
+        if (contentEl) contentEl.innerHTML = "<p>Lỗi kết nối tới Server. Vui lòng bật Backend.</p>";
     }
 }
 
@@ -636,7 +678,7 @@ async function loadProductsContent() {
     const titleEl = document.getElementById('dynamic-products-title');
     const contentEl = document.getElementById('dynamic-products-content');
     
-    // Chá»‰ táº£i náº¿u Ä‘ang á»Ÿ trang Sáº£n pháº©m
+    // Chỉ tải nếu đang ở trang Sản phẩm
     if (!titleEl && !contentEl) return;
 
     try {
@@ -648,8 +690,8 @@ async function loadProductsContent() {
         if (contentEl && products.content) contentEl.innerHTML = products.content;
     } catch (e) {
         console.warn('Backend C# is not running. Using default static products content.');
-        if (titleEl) titleEl.innerText = "Sáº£n pháº©m tiĂªu biá»ƒu";
-        if (contentEl) contentEl.innerHTML = "<p>Lá»—i káº¿t ná»‘i tá»›i Server. Vui lĂ²ng báº­t Backend.</p>";
+        if (titleEl) titleEl.innerText = "Sản phẩm tiêu biểu";
+        if (contentEl) contentEl.innerHTML = "<p>Lỗi kết nối tới Server. Vui lòng bật Backend.</p>";
     }
 }
 
@@ -657,7 +699,7 @@ async function loadOrgChartContent() {
     const titleEl = document.getElementById('dynamic-orgchart-title');
     const contentEl = document.getElementById('dynamic-orgchart-content');
     
-    // Chá»‰ táº£i náº¿u Ä‘ang á»Ÿ trang SÆ¡ Ä‘á»“ tá»• chá»©c
+    // Chỉ tải nếu đang ở trang Sơ đồ tổ chức
     if (!titleEl && !contentEl) return;
 
     try {
@@ -669,8 +711,8 @@ async function loadOrgChartContent() {
         if (contentEl && orgchart.content) contentEl.innerHTML = orgchart.content;
     } catch (e) {
         console.warn('Backend C# is not running. Using default static org chart content.');
-        if (titleEl) titleEl.innerText = "SÆ¡ Ä‘á»“ tá»• chá»©c";
-        if (contentEl) contentEl.innerHTML = "<p>Lá»—i káº¿t ná»‘i tá»›i Server. Vui lĂ²ng báº­t Backend.</p>";
+        if (titleEl) titleEl.innerText = "Sơ đồ tổ chức";
+        if (contentEl) contentEl.innerHTML = "<p>Lỗi kết nối tới Server. Vui lòng bật Backend.</p>";
     }
 }
 
@@ -678,7 +720,7 @@ async function loadStructContent() {
     const titleEl = document.getElementById('dynamic-struct-title');
     const contentEl = document.getElementById('dynamic-struct-content');
     
-    // Chá»‰ táº£i náº¿u Ä‘ang á»Ÿ trang CÆ¡ cáº¥u tá»• chá»©c
+    // Chỉ tải nếu đang ở trang Cơ cấu tổ chức
     if (!titleEl && !contentEl) return;
 
     try {
@@ -690,17 +732,17 @@ async function loadStructContent() {
         if (contentEl && structData.content) contentEl.innerHTML = structData.content;
     } catch (e) {
         console.warn('Backend C# is not running. Using default static struct content.');
-        if (titleEl) titleEl.innerText = "CÆ¡ cáº¥u tá»• chá»©c";
-        if (contentEl) contentEl.innerHTML = "<p>Lá»—i káº¿t ná»‘i tá»›i Server. Vui lĂ²ng báº­t Backend.</p>";
+        if (titleEl) titleEl.innerText = "Cơ cấu tổ chức";
+        if (contentEl) contentEl.innerHTML = "<p>Lỗi kết nối tới Server. Vui lòng bật Backend.</p>";
     }
 }
 
 async function loadCategoryNews() {
-    // Láº¥y ID danh má»¥c tá»« thuá»™c tĂ­nh data-page-id cá»§a tháº» body
+    // Lấy ID danh mục từ thuộc tính data-page-id của thẻ body
     const categoryId = document.body.getAttribute('data-page-id');
-    if (!categoryId) return; // Náº¿u khĂ´ng cĂ³ thĂ¬ khĂ´ng pháº£i trang tin tá»©c
+    if (!categoryId) return; // Nếu không có thì không phải trang tin tức
 
-    // Láº¥y pháº§n tá»­ hiá»ƒn thá»‹ (há»— trá»£ cáº£ id chung vĂ  id cÅ© cá»§a bĂ£o lÅ© Ä‘á»ƒ tÆ°Æ¡ng thĂ­ch ngÆ°á»£c)
+    // Lấy phần tử hiển thị (hỗ trợ cả id chung và id cũ của bão lũ để tương thích ngược)
     const titleEl = document.getElementById('dynamic-news-title') || document.getElementById('dynamic-baolu-title');
     const contentEl = document.getElementById('dynamic-news-content') || document.getElementById('dynamic-baolu-content');
     
@@ -715,14 +757,14 @@ async function loadCategoryNews() {
         if (contentEl) {
             contentEl.innerHTML = '';
             if (!data.posts || data.posts.length === 0) {
-                contentEl.innerHTML = '<p style="text-align: center; color: #666; font-style: italic;">ChÆ°a cĂ³ báº£n tin nĂ o.</p>';
+                contentEl.innerHTML = '<p style="text-align: center; color: #666; font-style: italic;">Chưa có bản tin nào.</p>';
                 return;
             }
             
             data.posts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             
             const grid = document.createElement('div');
-            grid.className = 'baolu-grid'; // Váº«n giá»¯ class cÅ© Ä‘á»ƒ dĂ¹ng chung CSS
+            grid.className = 'baolu-grid'; // Vẫn giữ class cũ để dùng chung CSS
             
             data.posts.forEach(post => {
                 const card = document.createElement('div');
@@ -736,7 +778,7 @@ async function loadCategoryNews() {
                 
                 let linkHtml = '';
                 if (post.linkUrl) {
-                    linkHtml = `<a href="${post.linkUrl}" target="_blank" class="baolu-link"><i class="fa-solid fa-link"></i> ${post.linkText || 'Xem chi tiáº¿t'}</a>`;
+                    linkHtml = `<a href="${post.linkUrl}" target="_blank" rel="noopener noreferrer" class="baolu-link"><i class="fa-solid fa-link"></i> ${post.linkText || 'Liên kết nguồn'}</a>`;
                 }
                 
                 card.innerHTML = `
@@ -747,19 +789,39 @@ async function loadCategoryNews() {
                             <span><i class="fa-solid fa-clock"></i> ${post.createdAt}</span>
                             ${post.source ? `<span><i class="fa-solid fa-newspaper"></i> ${post.source}</span>` : ''}
                         </div>
-                        <div class="baolu-card-content">
+                        <div class="baolu-card-content is-collapsed">
                             ${post.content || ''}
                         </div>
-                        ${linkHtml}
+                        <div class="baolu-card-actions">
+                            <button type="button" class="baolu-detail-button" aria-expanded="false"><i class="fa-solid fa-chevron-down"></i> Xem chi tiết</button>
+                            <button type="button" class="baolu-read-button"><i class="fa-solid fa-volume-high"></i> Đọc văn bản</button>
+                            ${linkHtml}
+                        </div>
                     </div>
                 `;
+                const detailButton = card.querySelector('.baolu-detail-button');
+                const readButton = card.querySelector('.baolu-read-button');
+                const postContent = card.querySelector('.baolu-card-content');
+                detailButton.addEventListener('click', () => {
+                    const expanded = detailButton.getAttribute('aria-expanded') === 'true';
+                    detailButton.setAttribute('aria-expanded', String(!expanded));
+                    postContent.classList.toggle('is-collapsed', expanded);
+                    detailButton.innerHTML = expanded
+                        ? '<i class="fa-solid fa-chevron-down"></i> Xem chi tiết'
+                        : '<i class="fa-solid fa-chevron-up"></i> Thu gọn';
+                });
+                readButton.addEventListener('click', () => {
+                    window.dispatchEvent(new CustomEvent('azure-voice:read', {
+                        detail: { text: `${post.title || ''}. ${postContent.textContent || ''}` }
+                    }));
+                });
                 grid.appendChild(card);
             });
             contentEl.appendChild(grid);
         }
     } catch (e) {
         console.warn(`Backend C# is not running. Failed to load ${categoryId}.`, e);
-        if (contentEl) contentEl.innerHTML = "<p>Lá»—i káº¿t ná»‘i tá»›i Server. Vui lĂ²ng báº­t Backend.</p>";
+        if (contentEl) contentEl.innerHTML = "<p>Lỗi kết nối tới Server. Vui lòng bật Backend.</p>";
     }
 }
 

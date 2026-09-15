@@ -383,4 +383,13 @@ const commonComponents = {
             }
         }
     }
+
+    // Bộ đọc văn bản dùng chung cho các trang nội dung.
+    // Nạp tại đây để không phải gắn lại script vào từng trang HTML.
+    if (document.querySelector('.article-section')) {
+        const voiceReaderScript = document.createElement('script');
+        voiceReaderScript.src = `${window.BASE_URL || '/'}shared/doc-van-ban.js`;
+        voiceReaderScript.defer = true;
+        document.body.appendChild(voiceReaderScript);
+    }
 })();

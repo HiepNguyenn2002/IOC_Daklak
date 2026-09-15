@@ -1,6 +1,7 @@
 # .NET Build artifacts
 backend/bin/
 backend/obj/
+backend/.voice-test-build/
 .tmp/
 
 # Backend local/report artifacts
@@ -8,6 +9,7 @@ backend/BAO_CAO_TIEN_DO.md
 backend/data/
 backend/database/
 backend/wwwroot/uploads/
+backend/appsettings.Development.json
 
 # OS files
 .DS_Store
