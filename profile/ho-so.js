@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 let isAvatarChanged = false;
 let currentAvatarUrl = null;
 
@@ -60,7 +60,7 @@ async function loadUserProfile(username) {
             if (user.avatarUrl) {
                 // Nếu là đường dẫn tương đối, thêm tên miền API
                 if (user.avatarUrl.startsWith('/')) {
-                    document.getElementById('avatarPreview').src = `http://localhost:5000${user.avatarUrl}`;
+    document.getElementById('avatarPreview').src = user.avatarUrl;
                 } else {
                     document.getElementById('avatarPreview').src = user.avatarUrl;
                 }

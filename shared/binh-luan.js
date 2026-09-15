@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     async function fetchComments() {
         try {
-            const res = await fetch(`http://localhost:5000/api/binh-luan?pageId=${PAGE_ID}`);
+    const res = await fetch(`/api/binh-luan?pageId=${PAGE_ID}`);
             allComments = await res.json();
             renderComments();
         } catch (err) {
@@ -75,7 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const div = document.createElement('div');
             div.className = 'comment-item';
                         const avatarHtml = c.AvatarUrl 
-                ? `<img src="http://localhost:5000${c.AvatarUrl}" alt="${c.Username}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">` 
+        ? `<img src="${c.AvatarUrl}" alt="${c.Username}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`
                 : `<i class="fa-solid fa-user"></i>`;
                 
             div.innerHTML = `
@@ -109,7 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 const id = e.currentTarget.getAttribute('data-id');
                 try {
-                    const res = await fetch(`http://localhost:5000/api/binh-luan/${id}/dislike`, { method: 'POST' });
+    const res = await fetch(`/api/binh-luan/${id}/dislike`, { method: 'POST' });
                     const data = await res.json();
                     if (data.success) {
                         e.currentTarget.querySelector('.dislike-count').textContent = data.dislikes;
@@ -131,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 const id = e.currentTarget.getAttribute('data-id');
                 try {
-                    const res = await fetch(`http://localhost:5000/api/binh-luan/${id}/like`, { method: 'POST' });
+    const res = await fetch(`/api/binh-luan/${id}/like`, { method: 'POST' });
                     const data = await res.json();
                     if (data.success) {
                         e.currentTarget.querySelector('.like-count').textContent = data.likes;
@@ -164,7 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!currentUser) return;
         
         try {
-            const res = await fetch('http://localhost:5000/api/binh-luan', {
+    const res = await fetch('/api/binh-luan', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
